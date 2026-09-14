@@ -127,6 +127,48 @@ st.markdown('<div class="cred-badge">Engineered by an IIT Kanpur graduate, UPSC 
 
 st.markdown('<div class="dash-intro">Transform raw PYQs into a tactical, data-driven preparation engine. Stop passive reading and start actively eliminating. This intelligence dashboard analyzes your performance patterns, isolates specific examiner traps, and dynamically builds a personalized syllabus roadmap to maximize your final score.</div>', unsafe_allow_html=True)
 
+# ==========================================
+# --- GLOBAL DATABASE OVERVIEW ---
+# ==========================================
+st.markdown("### 📊 Database Overview")
+
+# 1. Global Metrics
+col1, col2, col3 = st.columns(3)
+col1.metric("Total Questions", len(df))
+
+# Dynamically construct exam label (e.g., "CAPF AC 2025, CDS 2024")
+if 'exam' in df.columns and 'year' in df.columns:
+    unique_exams = df[['exam', 'year']].drop_duplicates()
+    exam_label = ", ".join([f"{row['exam']} {row['year']}" for _, row in unique_exams.iterrows()])
+else:
+    exam_label = "UPSC CAPF-AC 2025"
+col2.metric("Available Exams", exam_label)
+
+col3.metric("Static Concepts", len(df[df['static_current_link'] == 'Static']))
+
+# 2. Global Charts (Mobile-Scroll Locked)
+c1, c2 = st.columns(2)
+
+with c1:
+    fig_sub = px.bar(df['subject'].value_counts().reset_index(), 
+                     x='count', y='subject', 
+                     orientation='h',
+                     title="Subject Weightage",
+                     color='subject')
+    fig_sub.update_layout(plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', showlegend=False, dragmode=False)
+    fig_sub.update_xaxes(showgrid=False, fixedrange=True, visible=False)
+    fig_sub.update_yaxes(fixedrange=True, categoryorder='total ascending')
+    st.plotly_chart(fig_sub, use_container_width=True)
+
+with c2:
+    fig_pattern = px.pie(df, names='q_pattern', hole=0.5, title="Question Structures")
+    fig_pattern.update_layout(dragmode=False, showlegend=False, margin=dict(t=30, b=10, l=10, r=10))
+    fig_pattern.update_xaxes(fixedrange=True)
+    fig_pattern.update_yaxes(fixedrange=True)
+    fig_pattern.update_traces(textposition='inside', textinfo='percent+label')
+    st.plotly_chart(fig_pattern, use_container_width=True)
+
+st.markdown("---")
 
 # ==========================================
 # --- CENTRALIZED FILTERS & EXAM TOGGLE ---
@@ -159,70 +201,27 @@ with st.expander("⚙️ Configure Mocks", expanded=True):
         is_exam_mode = "Full Mock Exam" in mode
     else:
         filtered_df = df
-        st.warning("⏱️ **Timed Mock Activated (2 Hours).** The interface is locked to Full Mock Exam mode. Submit at the end to view your scorecard.")
+        st.warning("⏱️ **Timed Mock Activated (2 Hours).** The interface is locked to Full Mock Exam mode. Submit at the end to view your scorecard and personalized report.")
         is_exam_mode = True
 
 # ==========================================
-# --- MAIN CONTENT RENDER ---
+# --- SESSION STATE INITIALIZATION ---
+# ==========================================
+if 'user_answers' not in st.session_state:
+    st.session_state['user_answers'] = {}
+if 'checked_questions' not in st.session_state:
+    st.session_state['checked_questions'] = set()
+if 'error_tags' not in st.session_state:
+    st.session_state['error_tags'] = {}
+if 'exam_submitted' not in st.session_state:
+    st.session_state['exam_submitted'] = False
+
+# ==========================================
+# --- MAIN CONTENT RENDER (TEST ARENA) ---
 # ==========================================
 if filtered_df.empty:
-    st.info("👆 Select subjects and difficulty levels in the configuration menu above to generate your custom practice set.")
+    st.info("👆 Select subjects and difficulty levels in the configuration menu above to generate your custom practice set of PYQ.")
 else:
-    # --- TOP LEVEL METRICS ---
-    col1, col2, col3 = st.columns(3)
-    col1.metric("Total Questions", len(filtered_df))
-    
-    exam_label = f"{filtered_df['exam'].iloc[0]} {filtered_df['year'].iloc[0]}" if 'exam' in filtered_df.columns and 'year' in filtered_df.columns else "N/A"
-    col2.metric("Target Exam", exam_label)
-    
-    col3.metric("Static Concepts", len(filtered_df[filtered_df['static_current_link'] == 'Static']))
-    
-    st.markdown("---")
-    
-    # --- MOBILE OPTIMIZED CHARTS ---
-    # 1. Subject Weightage Bar Chart
-    fig_sub = px.bar(filtered_df['subject'].value_counts().reset_index(), 
-                     x='count', y='subject', 
-                     orientation='h',
-                     title="Subject Weightage",
-                     color='subject')
-    fig_sub.update_layout(plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', showlegend=False, dragmode=False)
-    fig_sub.update_xaxes(showgrid=False, fixedrange=True, visible=False)
-    fig_sub.update_yaxes(fixedrange=True, categoryorder='total ascending')
-    st.plotly_chart(fig_sub, use_container_width=True)
-
-    c1, c2 = st.columns(2)
-    # 2. Question Pattern Donut Chart
-    with c1:
-        fig_pattern = px.pie(filtered_df, names='q_pattern', hole=0.5, title="Question Structures")
-        fig_pattern.update_layout(dragmode=False, showlegend=False, margin=dict(t=30, b=10, l=10, r=10))
-        fig_pattern.update_xaxes(fixedrange=True)
-        fig_pattern.update_yaxes(fixedrange=True)
-        fig_pattern.update_traces(textposition='inside', textinfo='percent+label')
-        st.plotly_chart(fig_pattern, use_container_width=True)
-
-    # 3. Difficulty Pie Chart
-    with c2:
-        fig_diff = px.pie(filtered_df, names='difficulty', color='difficulty', title="Difficulty Curve",
-                          color_discrete_map={'Easy':'#00cc96', 'Moderate':'#636efa', 'Hard':'#ef553b'})
-        fig_diff.update_layout(dragmode=False, showlegend=False, margin=dict(t=30, b=10, l=10, r=10))
-        fig_diff.update_xaxes(fixedrange=True)
-        fig_diff.update_yaxes(fixedrange=True)
-        fig_diff.update_traces(textposition='inside', textinfo='percent+label')
-        st.plotly_chart(fig_diff, use_container_width=True)
-
-    # ==========================================
-    # --- SESSION STATE INITIALIZATION ---
-    # ==========================================
-    if 'user_answers' not in st.session_state:
-        st.session_state['user_answers'] = {}
-    if 'checked_questions' not in st.session_state:
-        st.session_state['checked_questions'] = set()
-    if 'error_tags' not in st.session_state:
-        st.session_state['error_tags'] = {}
-    if 'exam_submitted' not in st.session_state:
-        st.session_state['exam_submitted'] = False
-
     st.markdown("## 🎯 Test Arena")
 
     if st.button("🔄 Reset Test / Clear Answers", use_container_width=True):
