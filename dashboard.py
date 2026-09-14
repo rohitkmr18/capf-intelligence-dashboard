@@ -6,28 +6,57 @@ import plotly.express as px
 st.set_page_config(page_title="PYQ Intelligence Dashboard", layout="wide")
 st.title("CAPF PYQ Intelligence Engine")
 
-# Load data automatically (clears cache if file is updated)
-@st.cache_data(ttl="10m") # Checks for updates every 10 mins, or remove cache for instant local reload
+# ==========================================
+# --- HELPER FUNCTIONS ---
+# ==========================================
+def reset_test_state():
+    """Clears all test progress when filters are changed."""
+    st.session_state['user_answers'] = {}
+    st.session_state['checked_questions'] = set()
+    st.session_state['error_tags'] = {}
+    st.session_state['exam_submitted'] = False
+
+def clean_text(text):
+    """Replaces raw \n or escaped \\n with Markdown double-space line breaks for UPSC formats."""
+    if pd.isna(text):
+        return ""
+    return str(text).replace('\\n', '  \n').replace('\n', '  \n')
+
+# Load data automatically
+@st.cache_data(ttl="10m") 
 def load_data():
     return pd.read_excel('PYQ Intelligence.xlsx', sheet_name='CAPF')
 
 df = load_data()
 
-# --- Sidebar Filters ---
+# ==========================================
+# --- SIDEBAR FILTERS ---
+# ==========================================
 st.sidebar.header("Filter Data")
-selected_subject = st.sidebar.multiselect("Select Subject", df['subject'].unique(), default=df['subject'].unique())
-selected_difficulty = st.sidebar.multiselect("Select Difficulty", df['difficulty'].unique(), default=df['difficulty'].unique())
+selected_subject = st.sidebar.multiselect(
+    "Select Subject", 
+    df['subject'].unique(), 
+    default=df['subject'].unique(),
+    on_change=reset_test_state
+)
+selected_difficulty = st.sidebar.multiselect(
+    "Select Difficulty", 
+    df['difficulty'].unique(), 
+    default=df['difficulty'].unique(),
+    on_change=reset_test_state
+)
 
 # Apply filters
 filtered_df = df[(df['subject'].isin(selected_subject)) & (df['difficulty'].isin(selected_difficulty))]
 
-# --- Top Level Metrics ---
+# ==========================================
+# --- TOP LEVEL METRICS & CHARTS ---
+# ==========================================
 col1, col2, col3 = st.columns(3)
 col1.metric("Total Questions", len(filtered_df))
 col2.metric("Most Tested Subject", filtered_df['subject'].mode()[0] if not filtered_df.empty else "N/A")
 col3.metric("Static Concepts", len(filtered_df[filtered_df['static_current_link'] == 'Static']))
 
-# --- Visualizations ---
 st.markdown("### Subject Weightage")
 fig_sub = px.bar(filtered_df['subject'].value_counts().reset_index(), 
                  x='subject', y='count', 
@@ -36,7 +65,6 @@ fig_sub = px.bar(filtered_df['subject'].value_counts().reset_index(),
 st.plotly_chart(fig_sub, use_container_width=True)
 
 col4, col5 = st.columns(2)
-
 with col4:
     st.markdown("### Question Patterns")
     fig_pattern = px.pie(filtered_df, names='q_pattern', hole=0.4)
@@ -48,9 +76,6 @@ with col5:
                       color_discrete_map={'Easy':'#00cc96', 'Moderate':'#636efa', 'Hard':'#ef553b'})
     st.plotly_chart(fig_diff, use_container_width=True)
 
-# Initialize the Error Log in session state
-if 'error_log' not in st.session_state:
-    st.session_state['error_log'] = pd.DataFrame(columns=['Q_Num', 'Subject', 'Error_Type'])
 
 # ==========================================
 # --- SESSION STATE INITIALIZATION ---
@@ -83,10 +108,7 @@ is_exam_mode = "Full Mock Exam" in mode
 col_mode1, col_mode2 = st.columns([4, 1])
 with col_mode2:
     if st.button("🔄 Reset Test / Clear Answers"):
-        st.session_state['user_answers'] = {}
-        st.session_state['checked_questions'] = set()
-        st.session_state['error_tags'] = {}
-        st.session_state['exam_submitted'] = False
+        reset_test_state()
         st.rerun()
 
 # ==========================================
@@ -106,7 +128,8 @@ if is_exam_mode and st.session_state['exam_submitted']:
         is_expanded = (user_pick != correct_opt)
         
         with st.expander(f"Q{q_num}. {str(row['question'])[:80]}...", expanded=is_expanded):
-            st.markdown(f"**Q{q_num}. {row['question']}**")
+            cleaned_question = clean_text(row['question'])
+            st.markdown(f"**Q{q_num}. {cleaned_question}**")
             
             options_dict = {
                 "A": str(row['opt_a']).strip(),
@@ -144,7 +167,8 @@ if is_exam_mode and st.session_state['exam_submitted']:
                 )
                 st.session_state['error_tags'][qid] = selected_tag
                 
-            st.info(f"**Explanation:**\n{row['explanation']}")
+            cleaned_explanation = clean_text(row['explanation'])
+            st.info(f"**Explanation:**\n{cleaned_explanation}")
             st.caption(f"**Source:** {row.get('source', 'N/A')}")
 
 else:
@@ -154,7 +178,8 @@ else:
         q_num = row['q_num']
         correct_opt = str(row['final_opt']).strip()
 
-        st.markdown(f"**Q{q_num}. {row['question']}**")
+        cleaned_question = clean_text(row['question'])
+        st.markdown(f"**Q{q_num}. {cleaned_question}**")
 
         # Statement Striker (for multi-statement questions)
         if "Statement" in str(row.get('q_pattern', '')):
@@ -213,7 +238,8 @@ else:
                     )
                     st.session_state['error_tags'][qid] = selected_tag
 
-                st.info(f"**Explanation:**\n{row['explanation']}")
+                cleaned_explanation = clean_text(row['explanation'])
+                st.info(f"**Explanation:**\n{cleaned_explanation}")
                 st.caption(f"**Source:** {row.get('source', 'N/A')}")
 
         st.divider()
@@ -299,3 +325,34 @@ if should_show_analysis:
         )
     else:
         st.success("🎯 No errors recorded in this test set!")
+
+    # --- Strategic Roadmap ---
+    st.markdown("### 🗺️ Data-Driven Preparation Roadmap")
+
+    roadmap_points = []
+
+    if attempted > 0 and accuracy < 60:
+        roadmap_points.append("⚠️ **Elimination Discipline:** Your overall accuracy is below 60%. Restrict speculative guessing and commit only when you can eliminate at least two options.")
+
+    if 'subj_summary' in locals() and not subj_summary.empty:
+        weak_subjects = subj_summary[subj_summary['Accuracy %'] < 60].index.tolist()
+        if weak_subjects:
+            roadmap_points.append(f"📚 **Priority Syllabus Revision:** Focus targeted revision sprints on **{', '.join(weak_subjects)}**, where your accuracy dipped below the 60% threshold.")
+
+    if not mistakes_df.empty:
+        error_counts = mistakes_df['Error_Type'].value_counts()
+        if not error_counts.empty:
+            top_error = error_counts.idxmax()
+            
+            if top_error == "Conceptual Gap":
+                roadmap_points.append("🧠 **Theory Re-anchoring:** 'Conceptual Gap' is your most frequent error. Step back from mock testing and re-read core NCERT chapters or standard reference books for these topics.")
+            elif top_error == "Factual Recall Failure":
+                roadmap_points.append("📝 **Active Recall Drill:** High 'Factual Recall Failure' detected. Implement concise one-page cheat sheets for dates, constitutional articles, and nodal ministries.")
+            elif top_error == "Silly Mistake / Misread":
+                roadmap_points.append("🔍 **Question Decoupling:** You are dropping marks to misreading. Circle or highlight keywords like 'NOT', 'INCORRECT', and statement counts before committing to a choice.")
+
+    if not roadmap_points:
+        roadmap_points.append("🔥 **Maintain Consistency:** Excellent performance! You have strong accuracy and no dominant weak points in this set. Continue timed mixed-subject drills to build speed.")
+
+    for pt in roadmap_points:
+        st.markdown(f"- {pt}")
