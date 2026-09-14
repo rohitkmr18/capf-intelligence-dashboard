@@ -79,10 +79,10 @@ mode = st.radio(
 
 is_exam_mode = "Full Mock Exam" in mode
 
-# Reset button for clearing session attempts
+# Reset button for clearing session attempts cleanly
 col_mode1, col_mode2 = st.columns([4, 1])
 with col_mode2:
-    if st.button("🔄 Reset Test / Answers"):
+    if st.button("🔄 Reset Test / Clear Answers"):
         st.session_state['user_answers'] = {}
         st.session_state['checked_questions'] = set()
         st.session_state['error_tags'] = {}
@@ -92,83 +92,134 @@ with col_mode2:
 # ==========================================
 # --- QUESTION RENDERING LOOP ---
 # ==========================================
-for index, row in filtered_df.iterrows():
-    qid = str(row['question_id'])
-    q_num = row['q_num']
-    correct_opt = str(row['final_opt']).strip()
-
-    st.markdown(f"**Q{q_num}. {row['question']}**")
-
-    # Statement Striker (for multi-statement questions)
-    if "Statement" in str(row['q_pattern']):
-        eliminated = st.multiselect(
-            "🛠️ Statement Striker (Eliminate false statements):",
-            ["1", "2", "3", "4"],
-            key=f"strike_{qid}"
-        )
-        if eliminated:
-            st.caption(f"💡 *Eliminated: Statement(s) {', '.join(eliminated)}. Discard options containing them.*")
-
-    options = [
-        f"A) {row['opt_a']}",
-        f"B) {row['opt_b']}",
-        f"C) {row['opt_c']}",
-        f"D) {row['opt_d']}"
-    ]
-
-    # Pre-select previous choice if available
-    saved_choice = st.session_state['user_answers'].get(qid, None)
-    saved_index = None
-    if saved_choice:
-        for idx, opt in enumerate(options):
-            if opt.startswith(saved_choice):
-                saved_index = idx
-
-    selected_choice = st.radio(
-        "Select Option:",
-        options,
-        index=saved_index,
-        key=f"radio_{qid}"
-    )
-
-    if selected_choice:
-        st.session_state['user_answers'][qid] = selected_choice[0]
-
-    # --- Mode 1: Instant Feedback Mechanics ---
-    if not is_exam_mode:
-        col_btn, _ = st.columns([2, 5])
-        with col_btn:
-            if st.button(f"Check Answer", key=f"btn_check_{qid}"):
-                if qid in st.session_state['user_answers']:
-                    st.session_state['checked_questions'].add(qid)
+if is_exam_mode and st.session_state['exam_submitted']:
+    st.markdown("### 📝 Post-Submission Review Mode")
+    st.write("Review your performance below. Click on any question to expand its full explanation and log your errors.")
+    
+    for index, row in filtered_df.iterrows():
+        qid = str(row['question_id'])
+        q_num = row['q_num']
+        correct_opt = str(row['final_opt']).strip()
+        user_pick = st.session_state['user_answers'].get(qid, "Unattempted")
+        
+        # Expand questions that were answered incorrectly or left unattempted
+        is_expanded = (user_pick != correct_opt)
+        
+        with st.expander(f"Q{q_num}. {str(row['question'])[:80]}...", expanded=is_expanded):
+            st.markdown(f"**Q{q_num}. {row['question']}**")
+            
+            options_dict = {
+                "A": str(row['opt_a']).strip(),
+                "B": str(row['opt_b']).strip(),
+                "C": str(row['opt_c']).strip(),
+                "D": str(row['opt_d']).strip()
+            }
+            
+            # Color-coded option rendering
+            for opt_letter, opt_text in options_dict.items():
+                if opt_letter == correct_opt:
+                    st.markdown(f"✅ <span style='color:green; font-weight:bold;'>{opt_letter}) {opt_text} (Correct Answer)</span>", unsafe_allow_html=True)
+                elif opt_letter == user_pick and user_pick != correct_opt:
+                    st.markdown(f"❌ <span style='color:red; font-weight:bold;'>{opt_letter}) {opt_text} (Your Answer)</span>", unsafe_allow_html=True)
                 else:
-                    st.warning("Select an option first.")
-
-        if qid in st.session_state['checked_questions']:
-            user_pick = st.session_state['user_answers'].get(qid)
-            if user_pick == correct_opt:
-                st.success(f"✅ **Correct!** (Answer: {correct_opt})")
+                    st.markdown(f"{opt_letter}) {opt_text}")
+            
+            st.markdown("---")
+            
+            if user_pick == "Unattempted":
+                st.warning("⚠️ **Status:** Unattempted")
+            elif user_pick == correct_opt:
+                st.success("🎯 **Status:** Correct")
             else:
-                st.error(f"❌ **Incorrect.** Correct Answer is **{correct_opt}**")
-                st.warning("🪤 **Trap Identified:** Data / Concept Swap")
-
-                # Error categorization dropdown
+                st.error("🚨 **Status:** Incorrect")
+                st.caption("🪤 **Trap Identified:** Data / Concept Swap")
+                
+                # Dynamic Mistake Vault Logging
                 current_tag = st.session_state['error_tags'].get(qid, "Conceptual Gap")
                 selected_tag = st.selectbox(
-                    "Categorize this mistake for Individual Analysis:",
+                    "Categorize this mistake for your vault:",
                     ["Conceptual Gap", "Factual Recall Failure", "Silly Mistake / Misread"],
                     index=["Conceptual Gap", "Factual Recall Failure", "Silly Mistake / Misread"].index(current_tag),
-                    key=f"tag_{qid}"
+                    key=f"review_tag_{qid}"
                 )
                 st.session_state['error_tags'][qid] = selected_tag
-
+                
             st.info(f"**Explanation:**\n{row['explanation']}")
-            st.caption(f"**Source:** {row['source']}")
+            st.caption(f"**Source:** {row.get('source', 'N/A')}")
 
-    st.divider()
+else:
+    # --- Standard Testing Loop (Instant Feedback or Pre-Submission Mock) ---
+    for index, row in filtered_df.iterrows():
+        qid = str(row['question_id'])
+        q_num = row['q_num']
+        correct_opt = str(row['final_opt']).strip()
+
+        st.markdown(f"**Q{q_num}. {row['question']}**")
+
+        # Statement Striker (for multi-statement questions)
+        if "Statement" in str(row.get('q_pattern', '')):
+            eliminated = st.multiselect(
+                "🛠️ Statement Striker (Eliminate false statements):",
+                ["1", "2", "3", "4"],
+                key=f"strike_{qid}"
+            )
+            if eliminated:
+                st.caption(f"💡 *Eliminated: Statement(s) {', '.join(eliminated)}. Discard options containing them.*")
+
+        options = [
+            f"A) {row['opt_a']}",
+            f"B) {row['opt_b']}",
+            f"C) {row['opt_c']}",
+            f"D) {row['opt_d']}"
+        ]
+
+        saved_choice = st.session_state['user_answers'].get(qid, None)
+        saved_index = next((idx for idx, opt in enumerate(options) if saved_choice and opt.startswith(saved_choice)), None)
+
+        selected_choice = st.radio(
+            "Select Option:",
+            options,
+            index=saved_index,
+            key=f"radio_{qid}"
+        )
+
+        if selected_choice:
+            st.session_state['user_answers'][qid] = selected_choice[0]
+
+        # Mode 1: Instant Feedback Mechanics
+        if not is_exam_mode:
+            col_btn, _ = st.columns([2, 5])
+            with col_btn:
+                if st.button(f"Check Answer", key=f"btn_check_{qid}"):
+                    if qid in st.session_state['user_answers']:
+                        st.session_state['checked_questions'].add(qid)
+                    else:
+                        st.warning("Select an option first.")
+
+            if qid in st.session_state['checked_questions']:
+                user_pick = st.session_state['user_answers'].get(qid)
+                if user_pick == correct_opt:
+                    st.success(f"✅ **Correct!** (Answer: {correct_opt})")
+                else:
+                    st.error(f"❌ **Incorrect.** Correct Answer is **{correct_opt}**")
+                    st.warning("🪤 **Trap Identified:** Data / Concept Swap")
+
+                    current_tag = st.session_state['error_tags'].get(qid, "Conceptual Gap")
+                    selected_tag = st.selectbox(
+                        "Categorize this mistake for Individual Analysis:",
+                        ["Conceptual Gap", "Factual Recall Failure", "Silly Mistake / Misread"],
+                        index=["Conceptual Gap", "Factual Recall Failure", "Silly Mistake / Misread"].index(current_tag),
+                        key=f"tag_{qid}"
+                    )
+                    st.session_state['error_tags'][qid] = selected_tag
+
+                st.info(f"**Explanation:**\n{row['explanation']}")
+                st.caption(f"**Source:** {row.get('source', 'N/A')}")
+
+        st.divider()
 
 # --- Mode 2: Submit Button for Exam Mode ---
-if is_exam_mode:
+if is_exam_mode and not st.session_state['exam_submitted']:
     if st.button("🚀 Submit Mock Test & Generate Analysis", type="primary"):
         st.session_state['exam_submitted'] = True
         st.rerun()
@@ -182,7 +233,6 @@ should_show_analysis = (is_exam_mode and st.session_state['exam_submitted']) or 
 if should_show_analysis:
     st.markdown("## 📊 Individual Analysis & Performance Audit")
 
-    # Evaluate responses
     records = []
     eval_set = filtered_df if is_exam_mode else filtered_df[filtered_df['question_id'].astype(str).isin(st.session_state['checked_questions'])]
 
@@ -202,24 +252,20 @@ if should_show_analysis:
             'Q_Num': row['q_num'],
             'Subject': row['subject'],
             'Topic': row['topic'],
-            'Static_Current': row['static_current_link'],
             'User_Choice': user_pick,
             'Correct_Choice': correct_opt,
             'Status': status,
             'Error_Type': st.session_state['error_tags'].get(qid, "Uncategorized" if status == "Incorrect" else "N/A"),
-            'Explanation': row['explanation']
         })
 
     analysis_df = pd.DataFrame(records)
 
-    # Core Metrics
     total_questions = len(analysis_df)
     attempted = len(analysis_df[analysis_df['Status'] != "Unattempted"])
     correct = len(analysis_df[analysis_df['Status'] == "Correct"])
     incorrect = len(analysis_df[analysis_df['Status'] == "Incorrect"])
     unattempted = total_questions - attempted
 
-    # UPSC Marking Scheme: +2.0 for correct, -0.667 for incorrect
     net_score = (correct * 2.0) - (incorrect * 0.667)
     max_score = total_questions * 2.0
     accuracy = (correct / attempted * 100) if attempted > 0 else 0
@@ -231,18 +277,18 @@ if should_show_analysis:
     m4.metric("Incorrect (-0.67)", incorrect)
     m5.metric("Unattempted", unattempted)
 
-    # --- Subject-wise Breakdown ---
     st.markdown("### 📌 Subject-Wise Precision")
-    subj_summary = analysis_df[analysis_df['Status'] != "Unattempted"].groupby('Subject').agg(
-        Total_Attempted=('Status', 'count'),
-        Correct=('Status', lambda x: (x == 'Correct').sum()),
-        Incorrect=('Status', lambda x: (x == 'Incorrect').sum())
-    )
-    if not subj_summary.empty:
+    if attempted > 0:
+        subj_summary = analysis_df[analysis_df['Status'] != "Unattempted"].groupby('Subject').agg(
+            Total_Attempted=('Status', 'count'),
+            Correct=('Status', lambda x: (x == 'Correct').sum()),
+            Incorrect=('Status', lambda x: (x == 'Incorrect').sum())
+        )
         subj_summary['Accuracy %'] = (subj_summary['Correct'] / subj_summary['Total_Attempted'] * 100).round(1)
         st.dataframe(subj_summary, use_container_width=True)
+    else:
+        st.info("No questions attempted yet.")
 
-    # --- Mistake Vault Table ---
     st.markdown("### 🏦 The Mistake Vault")
     mistakes_df = analysis_df[analysis_df['Status'] == "Incorrect"]
 
@@ -251,66 +297,5 @@ if should_show_analysis:
             mistakes_df[['Q_Num', 'Subject', 'Topic', 'User_Choice', 'Correct_Choice', 'Error_Type']],
             use_container_width=True
         )
-
-        # In Exam Mode: Allow post-exam categorization
-        if is_exam_mode:
-            st.caption("Categorize your errors below to sharpen the roadmap recommendations:")
-            for _, m_row in mistakes_df.iterrows():
-                mqid = str(filtered_df[filtered_df['q_num'] == m_row['Q_Num']]['question_id'].values[0])
-                c1, c2 = st.columns([3, 2])
-                with c1:
-                    st.write(f"**Q{m_row['Q_Num']} ({m_row['Subject']}):** {m_row['Topic']}")
-                with c2:
-                    current_et = st.session_state['error_tags'].get(mqid, "Conceptual Gap")
-                    new_et = st.selectbox(
-                        f"Error reason Q{m_row['Q_Num']}",
-                        ["Conceptual Gap", "Factual Recall Failure", "Silly Mistake / Misread"],
-                        index=["Conceptual Gap", "Factual Recall Failure", "Silly Mistake / Misread"].index(current_et),
-                        key=f"post_tag_{mqid}",
-                        label_visibility="collapsed"
-                    )
-                    st.session_state['error_tags'][mqid] = new_et
     else:
         st.success("🎯 No errors recorded in this test set!")
-
-    # --- Strategic Roadmap ---
-    st.markdown("### 🗺️ Data-Driven Preparation Roadmap")
-
-    roadmap_points = []
-
-    # Accuracy logic
-    if accuracy < 60 and attempted > 0:
-        roadmap_points.append(
-            "⚠️ **Elimination Discipline:** Your accuracy is below 60%. Restrict 50-50 speculative guesses and only commit when you can eliminate at least two options."
-        )
-
-    # Subject-specific weaknesses
-    if not subj_summary.empty:
-        weakest_subjects = subj_summary[subj_summary['Accuracy %'] < 60].index.tolist()
-        if weakest_subjects:
-            roadmap_points.append(
-                f"📚 **Priority Syllabus Revision:** Focus revision sprints on **{', '.join(weakest_subjects)}**, where your accuracy dipped below the 60% threshold."
-            )
-
-    # Error type patterns
-    error_counts = analysis_df['Error_Type'].value_counts()
-    if 'Conceptual Gap' in error_counts and error_counts['Conceptual Gap'] >= 2:
-        roadmap_points.append(
-            "🧠 **Theory Re-anchoring:** You have multiple 'Conceptual Gap' tags. Step back from mock testing for these topics and re-read core NCERT chapters before practicing more questions."
-        )
-    if 'Factual Recall Failure' in error_counts and error_counts['Factual Recall Failure'] >= 2:
-        roadmap_points.append(
-            "📝 **Active Recall Drill:** High factual recall errors detected. Implement concise one-page cheat sheets for dates, constitutional articles, and scheme nodal ministries."
-        )
-    if 'Silly Mistake / Misread' in error_counts and error_counts['Silly Mistake / Misread'] >= 1:
-        roadmap_points.append(
-            "🔍 **Question Decoupling:** You are dropping marks to question misreading. Circle or highlight keywords like 'NOT correct', 'INCORRECT', and statement counts before marking choices."
-        )
-
-    if not roadmap_points:
-        roadmap_points.append(
-            "🔥 **Maintain Consistency:** High accuracy across all attempted sections. Continue mixed-subject timed drill sets to build speed."
-        )
-
-    for pt in roadmap_points:
-        st.markdown(f"- {pt}")
