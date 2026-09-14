@@ -123,7 +123,7 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-st.markdown('<div class="cred-badge">Engineered by an IIT Kanpur graduate, UPSC CAPF AC AIR 163, and 4-time CDS qualifier.</div>', unsafe_allow_html=True)
+st.markdown('<div class="cred-badge">Engineered by an IIT Kanpur graduate, UPSC CAPF AC AIR 163 and 4-time CDS qualifier.</div>', unsafe_allow_html=True)
 
 st.markdown('<div class="dash-intro">Transform raw PYQs into a tactical, data-driven preparation engine. Stop passive reading and start actively eliminating. This intelligence dashboard analyzes your performance patterns, isolates specific examiner traps, and dynamically builds a personalized syllabus roadmap to maximize your final score.</div>', unsafe_allow_html=True)
 
@@ -133,7 +133,7 @@ st.markdown('<div class="dash-intro">Transform raw PYQs into a tactical, data-dr
 st.markdown("### 📊 Database Overview")
 
 # 1. Global Metrics
-col1, col2, col3 = st.columns(3)
+col1, col2 = st.columns(2)
 col1.metric("Total Questions", len(df))
 
 # Dynamically construct exam label (e.g., "CAPF AC 2025, CDS 2024")
@@ -144,28 +144,26 @@ else:
     exam_label = "UPSC CAPF-AC 2025"
 col2.metric("Available Exams", exam_label)
 
-col3.metric("Static Concepts", len(df[df['static_current_link'] == 'Static']))
-
 # 2. Global Charts (Mobile-Scroll Locked)
 c1, c2 = st.columns(2)
 
 with c1:
-    fig_sub = px.bar(df['subject'].value_counts().reset_index(), 
-                     x='count', y='subject', 
-                     orientation='h',
-                     title="Subject Weightage",
-                     color='subject')
-    fig_sub.update_layout(plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', showlegend=False, dragmode=False)
-    fig_sub.update_xaxes(showgrid=False, fixedrange=True, visible=False)
-    fig_sub.update_yaxes(fixedrange=True, categoryorder='total ascending')
+    fig_sub = px.pie(df, names='subject', hole=0.5, title="Subject Weightage")
+    fig_sub.update_layout(dragmode=False, showlegend=False, margin=dict(t=30, b=10, l=10, r=10))
+    fig_sub.update_xaxes(fixedrange=True)
+    fig_sub.update_yaxes(fixedrange=True)
+    fig_sub.update_traces(textposition='inside', textinfo='percent+label')
     st.plotly_chart(fig_sub, use_container_width=True)
 
 with c2:
-    fig_pattern = px.pie(df, names='q_pattern', hole=0.5, title="Question Structures")
-    fig_pattern.update_layout(dragmode=False, showlegend=False, margin=dict(t=30, b=10, l=10, r=10))
-    fig_pattern.update_xaxes(fixedrange=True)
-    fig_pattern.update_yaxes(fixedrange=True)
-    fig_pattern.update_traces(textposition='inside', textinfo='percent+label')
+    fig_pattern = px.bar(df['q_pattern'].value_counts().reset_index(), 
+                         x='count', y='q_pattern', 
+                         orientation='h',
+                         title="Question Structures",
+                         color='q_pattern')
+    fig_pattern.update_layout(plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', showlegend=False, dragmode=False)
+    fig_pattern.update_xaxes(showgrid=False, fixedrange=True, visible=False)
+    fig_pattern.update_yaxes(fixedrange=True, categoryorder='total ascending')
     st.plotly_chart(fig_pattern, use_container_width=True)
 
 st.markdown("---")
@@ -222,6 +220,36 @@ if 'exam_submitted' not in st.session_state:
 if filtered_df.empty:
     st.info("👆 Select subjects and difficulty levels in the configuration menu above to generate your custom practice set of PYQ.")
 else:
+    # --- TOP LEVEL METRICS (Filtered Set) ---
+    col1, col2 = st.columns(2)
+    col1.metric("Total Questions", len(filtered_df))
+    
+    exam_label = f"{filtered_df['exam'].iloc[0]} {filtered_df['year'].iloc[0]}" if 'exam' in filtered_df.columns and 'year' in filtered_df.columns else "N/A"
+    col2.metric("Target Exam", exam_label)
+    
+    st.markdown("---")
+    
+    # --- MOBILE OPTIMIZED CHARTS (Filtered Set) ---
+    c1, c2 = st.columns(2)
+    with c1:
+        fig_sub = px.pie(filtered_df, names='subject', hole=0.5, title="Subject Weightage")
+        fig_sub.update_layout(dragmode=False, showlegend=False, margin=dict(t=30, b=10, l=10, r=10))
+        fig_sub.update_xaxes(fixedrange=True)
+        fig_sub.update_yaxes(fixedrange=True)
+        fig_sub.update_traces(textposition='inside', textinfo='percent+label')
+        st.plotly_chart(fig_sub, use_container_width=True)
+
+    with c2:
+        fig_pattern = px.bar(filtered_df['q_pattern'].value_counts().reset_index(), 
+                             x='count', y='q_pattern', 
+                             orientation='h',
+                             title="Question Structures",
+                             color='q_pattern')
+        fig_pattern.update_layout(plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', showlegend=False, dragmode=False)
+        fig_pattern.update_xaxes(showgrid=False, fixedrange=True, visible=False)
+        fig_pattern.update_yaxes(fixedrange=True, categoryorder='total ascending')
+        st.plotly_chart(fig_pattern, use_container_width=True)
+
     st.markdown("## 🎯 Test Arena")
 
     if st.button("🔄 Reset Test / Clear Answers", use_container_width=True):
