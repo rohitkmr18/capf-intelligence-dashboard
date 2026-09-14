@@ -48,54 +48,58 @@ with col5:
                       color_discrete_map={'Easy':'#00cc96', 'Moderate':'#636efa', 'Hard':'#ef553b'})
     st.plotly_chart(fig_diff, use_container_width=True)
 
-# --- Interactive Practice Mode ---
-st.markdown("### 📝 Practice Mode")
-st.write("Test your knowledge based on the filters selected above.")
+# Initialize the Error Log in session state
+if 'error_log' not in st.session_state:
+    st.session_state['error_log'] = pd.DataFrame(columns=['Q_Num', 'Subject', 'Error_Type'])
 
-# Iterate through the filtered dataframe
+# --- Interactive Practice Mode ---
+st.markdown("### 📝 Tactical Practice Arena")
+
 for index, row in filtered_df.iterrows():
     st.markdown(f"**Q{row['q_num']}. {row['question']}**")
+    q_key = f"q_{row['question_id']}"
     
-    # Create a unique key for each question using its ID
-    q_key = f"submitted_{row['question_id']}"
-    
-    # Initialize session state for this question if it doesn't exist
-    if q_key not in st.session_state:
-        st.session_state[q_key] = False
+    # 1. Statement Striker (Triggers only for multi-statement questions)
+    if "Statement" in str(row['q_pattern']):
+        st.caption("🛠️ **Statement Striker:**")
+        eliminated = st.multiselect("Select statements you know are FALSE to cross-reference options:", 
+                                    ["1", "2", "3", "4"], key=f"strike_{q_key}")
+        if eliminated:
+            st.info(f"💡 *Eliminated: {', '.join(eliminated)}. Any option containing these numbers is incorrect.*")
 
-    # Format the options
-    options = [
-        f"A) {row['opt_a']}",
-        f"B) {row['opt_b']}",
-        f"C) {row['opt_c']}",
-        f"D) {row['opt_d']}"
-    ]
+    options = [f"A) {row['opt_a']}", f"B) {row['opt_b']}", f"C) {row['opt_c']}", f"D) {row['opt_d']}"]
+    user_choice = st.radio("Select your answer:", options, key=f"radio_{q_key}", index=None)
     
-    # Radio button for user selection
-    user_choice = st.radio("Select your answer:", options, key=f"radio_{row['question_id']}", index=None)
-    
-    # Check Answer Button
-    if st.button("Check Answer", key=f"btn_{row['question_id']}"):
-        st.session_state[q_key] = True
-
-    # Display logic after submission
-    if st.session_state[q_key]:
+    if st.button("Check Answer", key=f"btn_{q_key}"):
         if user_choice:
-            # Extract the letter (A, B, C, or D) from the user's choice
-            selected_letter = user_choice[0] 
+            selected_letter = user_choice[0]
             correct_letter = str(row['final_opt']).strip()
             
-            # Compare and display results
             if selected_letter == correct_letter:
-                st.success(f"✅ **Correct!**")
+                st.success("✅ **Correct!**")
             else:
                 st.error(f"❌ **Incorrect.** The correct answer is **{correct_letter}**.")
-            
-            # Show explanation and source
+                
+                # 2. Trap Identification (Simulated tag extraction)
+                # In a full production database, add a 'trap_type' column to your Excel sheet.
+                st.warning("🪤 **Trap Identified:** Fact Swap (Examiner altered specific data points).")
+                
+                # 3. Error Logging
+                error_type = st.selectbox("Categorize this mistake for your vault:", 
+                                          ["Conceptual Gap", "Factual Recall Failure", "Silly Mistake / Misread"], 
+                                          key=f"log_{q_key}")
+                
+                if st.button("Save to Vault", key=f"save_{q_key}"):
+                    new_error = pd.DataFrame({'Q_Num': [row['q_num']], 'Subject': [row['subject']], 'Error_Type': [error_type]})
+                    st.session_state['error_log'] = pd.concat([st.session_state['error_log'], new_error], ignore_index=True)
+                    st.success("Logged to Mistake Vault.")
+                
             st.info(f"**Explanation:**\n{row['explanation']}")
-            st.caption(f"**Source:** {row['source']}")
-        else:
-            st.warning("Please select an option before checking.")
-            st.session_state[q_key] = False # Reset if they clicked without selecting
-    
-    st.divider() # Adds a horizontal line between questions
+    st.divider()
+
+# --- The Mistake Vault ---
+st.markdown("### 🏦 Your Mistake Vault")
+if not st.session_state['error_log'].empty:
+    st.dataframe(st.session_state['error_log'], use_container_width=True)
+else:
+    st.caption("Your vault is currently empty. Incorrect answers will populate here.")
