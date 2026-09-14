@@ -2,9 +2,82 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 
-# Set page layout
-st.set_page_config(page_title="PYQ Intelligence Dashboard", layout="wide")
-st.title("CAPF PYQ Intelligence Engine")
+# ==========================================
+# --- PAGE CONFIG & CSS INJECTION ---
+# ==========================================
+st.set_page_config(page_title="Defence Pathshala | PYQ Engine", layout="centered", initial_sidebar_state="collapsed")
+
+st.markdown("""
+<style>
+/* Base Typography & Negative Space */
+html, body, [class*="css"]  {
+    font-family: 'Inter', 'Segoe UI', sans-serif;
+}
+.block-container {
+    padding-top: 2rem !important;
+    padding-bottom: 2rem !important;
+}
+
+/* Comic-style Brand Identity */
+.hero-title {
+    font-family: 'Comic Sans MS', 'Chalkboard SE', 'Marker Felt', sans-serif;
+    font-weight: 800;
+    font-size: 2.2rem;
+    color: #1E3A8A;
+    text-align: center;
+    margin-bottom: 0px;
+    line-height: 1.2;
+}
+.hero-tagline {
+    font-size: 1.1rem;
+    color: #64748B;
+    text-align: center;
+    margin-top: 5px;
+    font-style: italic;
+}
+.cred-badge {
+    background-color: #F8FAFC;
+    border-left: 4px solid #3B82F6;
+    padding: 12px;
+    border-radius: 6px;
+    font-size: 0.9rem;
+    text-align: center;
+    margin: 20px auto;
+    font-weight: 600;
+    color: #334155;
+    max-width: 90%;
+}
+.method-flow {
+    text-align: center;
+    font-weight: 800;
+    color: #0F172A;
+    letter-spacing: 0.5px;
+    margin-bottom: 30px;
+    font-size: 0.95rem;
+}
+
+/* Mobile-Optimized Radio Buttons (Ample Touch Padding) */
+div.stRadio > div[role="radiogroup"] > label {
+    padding: 14px 18px !important;
+    margin-bottom: 10px !important;
+    background-color: #F8FAFC;
+    border-radius: 8px;
+    border: 1px solid #E2E8F0;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+div.stRadio > div[role="radiogroup"] > label:hover {
+    border-color: #3B82F6;
+    background-color: #EFF6FF;
+}
+
+/* Metric Typography Override */
+[data-testid="stMetricValue"] {
+    font-family: 'Comic Sans MS', 'Chalkboard SE', 'Marker Felt', sans-serif !important;
+    color: #1E3A8A;
+}
+</style>
+""", unsafe_allow_html=True)
 
 # ==========================================
 # --- HELPER FUNCTIONS ---
@@ -22,7 +95,6 @@ def clean_text(text):
         return ""
     return str(text).replace('\\n', '  \n').replace('\n', '  \n')
 
-# Load data automatically
 @st.cache_data(ttl="10m") 
 def load_data():
     return pd.read_excel('PYQ Intelligence.xlsx', sheet_name='CAPF')
@@ -30,52 +102,50 @@ def load_data():
 df = load_data()
 
 # ==========================================
-# --- SIDEBAR FILTERS ---
+# --- HERO SECTION ---
 # ==========================================
-st.sidebar.header("Filter Data")
-selected_subject = st.sidebar.multiselect(
-    "Select Subject", 
-    df['subject'].unique(), 
-    default=df['subject'].unique(),
-    on_change=reset_test_state
-)
-selected_difficulty = st.sidebar.multiselect(
-    "Select Difficulty", 
-    df['difficulty'].unique(), 
-    default=df['difficulty'].unique(),
-    on_change=reset_test_state
-)
+st.markdown('<div class="hero-title">Defence Pathshala PYQ Engine</div>', unsafe_allow_html=True)
+st.markdown('<div class="hero-tagline">Stop guessing. Start eliminating.</div>', unsafe_allow_html=True)
+st.markdown('<div class="cred-badge">Engineered by an IIT Kanpur graduate, UPSC CAPF AC AIR 163, and 4-time CDS qualifier.</div>', unsafe_allow_html=True)
+st.markdown('<div class="method-flow">Target PYQs ➔ Tag Traps ➔ Master Syllabus</div>', unsafe_allow_html=True)
 
-# Apply filters
+# ==========================================
+# --- CENTRALIZED FILTERS (No Sidebar) ---
+# ==========================================
+with st.expander("⚙️ Configure Mocks", expanded=False):
+    selected_subject = st.multiselect(
+        "Select Subject", 
+        df['subject'].unique(), 
+        default=df['subject'].unique(),
+        on_change=reset_test_state
+    )
+    selected_difficulty = st.multiselect(
+        "Select Difficulty", 
+        df['difficulty'].unique(), 
+        default=df['difficulty'].unique(),
+        on_change=reset_test_state
+    )
+
 filtered_df = df[(df['subject'].isin(selected_subject)) & (df['difficulty'].isin(selected_difficulty))]
 
 # ==========================================
 # --- TOP LEVEL METRICS & CHARTS ---
 # ==========================================
+# Using containers/columns that natively stack on mobile
 col1, col2, col3 = st.columns(3)
 col1.metric("Total Questions", len(filtered_df))
-col2.metric("Most Tested Subject", filtered_df['subject'].mode()[0] if not filtered_df.empty else "N/A")
+col2.metric("Top Subject", filtered_df['subject'].mode()[0] if not filtered_df.empty else "N/A")
 col3.metric("Static Concepts", len(filtered_df[filtered_df['static_current_link'] == 'Static']))
 
-st.markdown("### Subject Weightage")
+st.markdown("---")
+
+# Cleaned Plotly Charts
 fig_sub = px.bar(filtered_df['subject'].value_counts().reset_index(), 
                  x='subject', y='count', 
-                 labels={'subject': 'Subject', 'count': 'Number of Questions'},
-                 color='subject')
+                 color='subject', title="Subject Weightage")
+fig_sub.update_layout(plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', showlegend=False)
+fig_sub.update_yaxes(showgrid=False, visible=False)
 st.plotly_chart(fig_sub, use_container_width=True)
-
-col4, col5 = st.columns(2)
-with col4:
-    st.markdown("### Question Patterns")
-    fig_pattern = px.pie(filtered_df, names='q_pattern', hole=0.4)
-    st.plotly_chart(fig_pattern, use_container_width=True)
-
-with col5:
-    st.markdown("### Difficulty Distribution")
-    fig_diff = px.pie(filtered_df, names='difficulty', color='difficulty',
-                      color_discrete_map={'Easy':'#00cc96', 'Moderate':'#636efa', 'Hard':'#ef553b'})
-    st.plotly_chart(fig_diff, use_container_width=True)
-
 
 # ==========================================
 # --- SESSION STATE INITIALIZATION ---
@@ -92,31 +162,28 @@ if 'exam_submitted' not in st.session_state:
 # ==========================================
 # --- TEST MODE SELECTION ---
 # ==========================================
-st.markdown("---")
-st.markdown("## 🎯 Test & Practice Arena")
+st.markdown("## 🎯 Test Arena")
 
 mode = st.radio(
-    "Select your preferred testing mode before beginning:",
-    ["Instant Feedback Mode (Practice one by one)", "Full Mock Exam Mode (Submit all at the end)"],
-    index=0,
-    horizontal=True
+    "Testing Mode:",
+    ["Instant Feedback (Practice one by one)", "Full Mock Exam (Submit all at the end)"],
+    index=0
 )
 
 is_exam_mode = "Full Mock Exam" in mode
 
-# Reset button for clearing session attempts cleanly
-col_mode1, col_mode2 = st.columns([4, 1])
-with col_mode2:
-    if st.button("🔄 Reset Test / Clear Answers"):
-        reset_test_state()
-        st.rerun()
+if st.button("🔄 Reset Test / Clear Answers", use_container_width=True):
+    reset_test_state()
+    st.rerun()
+
+st.markdown("---")
 
 # ==========================================
 # --- QUESTION RENDERING LOOP ---
 # ==========================================
 if is_exam_mode and st.session_state['exam_submitted']:
-    st.markdown("### 📝 Post-Submission Review Mode")
-    st.write("Review your performance below. Click on any question to expand its full explanation and log your errors.")
+    st.markdown("### 📝 Post-Submission Review")
+    st.write("Click on any question to expand explanations and log your errors.")
     
     for index, row in filtered_df.iterrows():
         qid = str(row['question_id'])
@@ -124,10 +191,9 @@ if is_exam_mode and st.session_state['exam_submitted']:
         correct_opt = str(row['final_opt']).strip()
         user_pick = st.session_state['user_answers'].get(qid, "Unattempted")
         
-        # Expand questions that were answered incorrectly or left unattempted
         is_expanded = (user_pick != correct_opt)
         
-        with st.expander(f"Q{q_num}. {str(row['question'])[:80]}...", expanded=is_expanded):
+        with st.expander(f"Q{q_num}. {str(row['question'])[:60]}...", expanded=is_expanded):
             cleaned_question = clean_text(row['question'])
             st.markdown(f"**Q{q_num}. {cleaned_question}**")
             
@@ -138,7 +204,6 @@ if is_exam_mode and st.session_state['exam_submitted']:
                 "D": str(row['opt_d']).strip()
             }
             
-            # Color-coded option rendering
             for opt_letter, opt_text in options_dict.items():
                 if opt_letter == correct_opt:
                     st.markdown(f"✅ <span style='color:green; font-weight:bold;'>{opt_letter}) {opt_text} (Correct Answer)</span>", unsafe_allow_html=True)
@@ -155,12 +220,10 @@ if is_exam_mode and st.session_state['exam_submitted']:
                 st.success("🎯 **Status:** Correct")
             else:
                 st.error("🚨 **Status:** Incorrect")
-                st.caption("🪤 **Trap Identified:** Data / Concept Swap")
                 
-                # Dynamic Mistake Vault Logging
                 current_tag = st.session_state['error_tags'].get(qid, "Conceptual Gap")
                 selected_tag = st.selectbox(
-                    "Categorize this mistake for your vault:",
+                    "Categorize this mistake:",
                     ["Conceptual Gap", "Factual Recall Failure", "Silly Mistake / Misread"],
                     index=["Conceptual Gap", "Factual Recall Failure", "Silly Mistake / Misread"].index(current_tag),
                     key=f"review_tag_{qid}"
@@ -172,7 +235,6 @@ if is_exam_mode and st.session_state['exam_submitted']:
             st.caption(f"**Source:** {row.get('source', 'N/A')}")
 
 else:
-    # --- Standard Testing Loop (Instant Feedback or Pre-Submission Mock) ---
     for index, row in filtered_df.iterrows():
         qid = str(row['question_id'])
         q_num = row['q_num']
@@ -180,7 +242,7 @@ else:
 
         cleaned_question = clean_text(row['question'])
         st.markdown(f"**Q{q_num}. {cleaned_question}**")
-        
+
         options = [
             f"A) {row['opt_a']}",
             f"B) {row['opt_b']}",
@@ -195,21 +257,19 @@ else:
             "Select Option:",
             options,
             index=saved_index,
-            key=f"radio_{qid}"
+            key=f"radio_{qid}",
+            label_visibility="collapsed"
         )
 
         if selected_choice:
             st.session_state['user_answers'][qid] = selected_choice[0]
 
-        # Mode 1: Instant Feedback Mechanics
         if not is_exam_mode:
-            col_btn, _ = st.columns([2, 5])
-            with col_btn:
-                if st.button(f"Check Answer", key=f"btn_check_{qid}"):
-                    if qid in st.session_state['user_answers']:
-                        st.session_state['checked_questions'].add(qid)
-                    else:
-                        st.warning("Select an option first.")
+            if st.button(f"Check Answer", key=f"btn_check_{qid}"):
+                if qid in st.session_state['user_answers']:
+                    st.session_state['checked_questions'].add(qid)
+                else:
+                    st.warning("Select an option first.")
 
             if qid in st.session_state['checked_questions']:
                 user_pick = st.session_state['user_answers'].get(qid)
@@ -217,11 +277,10 @@ else:
                     st.success(f"✅ **Correct!** (Answer: {correct_opt})")
                 else:
                     st.error(f"❌ **Incorrect.** Correct Answer is **{correct_opt}**")
-                    st.warning("🪤 **Trap Identified:** Data / Concept Swap")
 
                     current_tag = st.session_state['error_tags'].get(qid, "Conceptual Gap")
                     selected_tag = st.selectbox(
-                        "Categorize this mistake for Individual Analysis:",
+                        "Categorize this mistake:",
                         ["Conceptual Gap", "Factual Recall Failure", "Silly Mistake / Misread"],
                         index=["Conceptual Gap", "Factual Recall Failure", "Silly Mistake / Misread"].index(current_tag),
                         key=f"tag_{qid}"
@@ -230,24 +289,22 @@ else:
 
                 cleaned_explanation = clean_text(row['explanation'])
                 st.info(f"**Explanation:**\n{cleaned_explanation}")
-                st.caption(f"**Source:** {row.get('source', 'N/A')}")
 
         st.divider()
 
-# --- Mode 2: Submit Button for Exam Mode ---
 if is_exam_mode and not st.session_state['exam_submitted']:
-    if st.button("🚀 Submit Mock Test & Generate Analysis", type="primary"):
+    if st.button("🚀 Submit Mock Test & Generate Analysis", type="primary", use_container_width=True):
         st.session_state['exam_submitted'] = True
         st.rerun()
 
 # ==========================================
-# --- INDIVIDUAL ANALYSIS ENGINE ---
+# --- INDIVIDUAL ANALYSIS ENGINE (TABS) ---
 # ==========================================
 should_show_analysis = (is_exam_mode and st.session_state['exam_submitted']) or \
                        (not is_exam_mode and len(st.session_state['checked_questions']) > 0)
 
 if should_show_analysis:
-    st.markdown("## 📊 Individual Analysis & Performance Audit")
+    st.markdown("## 📊 Performance Audit")
 
     records = []
     eval_set = filtered_df if is_exam_mode else filtered_df[filtered_df['question_id'].astype(str).isin(st.session_state['checked_questions'])]
@@ -286,63 +343,63 @@ if should_show_analysis:
     max_score = total_questions * 2.0
     accuracy = (correct / attempted * 100) if attempted > 0 else 0
 
-    m1, m2, m3, m4, m5 = st.columns(5)
-    m1.metric("Net Score", f"{net_score:.2f} / {max_score:.0f}")
-    m2.metric("Accuracy", f"{accuracy:.1f}%")
-    m3.metric("Correct (+2.0)", correct)
-    m4.metric("Incorrect (-0.67)", incorrect)
-    m5.metric("Unattempted", unattempted)
+    # Implement Progressive Disclosure with Tabs
+    tab_score, tab_subject, tab_vault, tab_roadmap = st.tabs(["Scorecard", "Subject Precision", "Mistake Vault", "Strategic Roadmap"])
 
-    st.markdown("### 📌 Subject-Wise Precision")
-    if attempted > 0:
-        subj_summary = analysis_df[analysis_df['Status'] != "Unattempted"].groupby('Subject').agg(
-            Total_Attempted=('Status', 'count'),
-            Correct=('Status', lambda x: (x == 'Correct').sum()),
-            Incorrect=('Status', lambda x: (x == 'Incorrect').sum())
-        )
-        subj_summary['Accuracy %'] = (subj_summary['Correct'] / subj_summary['Total_Attempted'] * 100).round(1)
-        st.dataframe(subj_summary, use_container_width=True)
-    else:
-        st.info("No questions attempted yet.")
+    with tab_score:
+        m1, m2 = st.columns(2)
+        m1.metric("Net Score", f"{net_score:.2f} / {max_score:.0f}")
+        m2.metric("Accuracy", f"{accuracy:.1f}%")
+        m3, m4, m5 = st.columns(3)
+        m3.metric("Correct", correct)
+        m4.metric("Incorrect", incorrect)
+        m5.metric("Blank", unattempted)
 
-    st.markdown("### 🏦 The Mistake Vault")
-    mistakes_df = analysis_df[analysis_df['Status'] == "Incorrect"]
+    with tab_subject:
+        if attempted > 0:
+            subj_summary = analysis_df[analysis_df['Status'] != "Unattempted"].groupby('Subject').agg(
+                Attempted=('Status', 'count'),
+                Correct=('Status', lambda x: (x == 'Correct').sum()),
+                Incorrect=('Status', lambda x: (x == 'Incorrect').sum())
+            )
+            subj_summary['Accuracy %'] = (subj_summary['Correct'] / subj_summary['Attempted'] * 100).round(1)
+            st.dataframe(subj_summary, use_container_width=True)
+        else:
+            st.info("No questions attempted yet.")
 
-    if not mistakes_df.empty:
-        st.dataframe(
-            mistakes_df[['Q_Num', 'Subject', 'Topic', 'User_Choice', 'Correct_Choice', 'Error_Type']],
-            use_container_width=True
-        )
-    else:
-        st.success("🎯 No errors recorded in this test set!")
+    with tab_vault:
+        mistakes_df = analysis_df[analysis_df['Status'] == "Incorrect"]
+        if not mistakes_df.empty:
+            st.dataframe(
+                mistakes_df[['Q_Num', 'Subject', 'Topic', 'User_Choice', 'Correct_Choice', 'Error_Type']],
+                use_container_width=True
+            )
+        else:
+            st.success("🎯 No errors recorded in this test set!")
 
-    # --- Strategic Roadmap ---
-    st.markdown("### 🗺️ Data-Driven Preparation Roadmap")
+    with tab_roadmap:
+        roadmap_points = []
+        if attempted > 0 and accuracy < 60:
+            roadmap_points.append("⚠️ **Elimination Discipline:** Overall accuracy below 60%. Restrict speculative guessing.")
+        
+        if 'subj_summary' in locals() and not subj_summary.empty:
+            weak_subjects = subj_summary[subj_summary['Accuracy %'] < 60].index.tolist()
+            if weak_subjects:
+                roadmap_points.append(f"📚 **Priority Revision:** Focus on **{', '.join(weak_subjects)}** (<60% accuracy).")
 
-    roadmap_points = []
+        if not mistakes_df.empty:
+            error_counts = mistakes_df['Error_Type'].value_counts()
+            if not error_counts.empty:
+                top_error = error_counts.idxmax()
+                if top_error == "Conceptual Gap":
+                    roadmap_points.append("🧠 **Theory Re-anchoring:** 'Conceptual Gap' is dominant. Re-read NCERTs for these topics.")
+                elif top_error == "Factual Recall Failure":
+                    roadmap_points.append("📝 **Active Recall Drill:** Build 1-page cheat sheets for dates/articles.")
+                elif top_error == "Silly Mistake / Misread":
+                    roadmap_points.append("🔍 **Question Decoupling:** Highlight 'NOT' and 'INCORRECT' before answering.")
 
-    if attempted > 0 and accuracy < 60:
-        roadmap_points.append("⚠️ **Elimination Discipline:** Your overall accuracy is below 60%. Restrict speculative guessing and commit only when you can eliminate at least two options.")
+        if not roadmap_points:
+            roadmap_points.append("🔥 **Maintain Consistency:** Excellent performance! Continue timed drills.")
 
-    if 'subj_summary' in locals() and not subj_summary.empty:
-        weak_subjects = subj_summary[subj_summary['Accuracy %'] < 60].index.tolist()
-        if weak_subjects:
-            roadmap_points.append(f"📚 **Priority Syllabus Revision:** Focus targeted revision sprints on **{', '.join(weak_subjects)}**, where your accuracy dipped below the 60% threshold.")
-
-    if not mistakes_df.empty:
-        error_counts = mistakes_df['Error_Type'].value_counts()
-        if not error_counts.empty:
-            top_error = error_counts.idxmax()
-            
-            if top_error == "Conceptual Gap":
-                roadmap_points.append("🧠 **Theory Re-anchoring:** 'Conceptual Gap' is your most frequent error. Step back from mock testing and re-read core NCERT chapters or standard reference books for these topics.")
-            elif top_error == "Factual Recall Failure":
-                roadmap_points.append("📝 **Active Recall Drill:** High 'Factual Recall Failure' detected. Implement concise one-page cheat sheets for dates, constitutional articles, and nodal ministries.")
-            elif top_error == "Silly Mistake / Misread":
-                roadmap_points.append("🔍 **Question Decoupling:** You are dropping marks to misreading. Circle or highlight keywords like 'NOT', 'INCORRECT', and statement counts before committing to a choice.")
-
-    if not roadmap_points:
-        roadmap_points.append("🔥 **Maintain Consistency:** Excellent performance! You have strong accuracy and no dominant weak points in this set. Continue timed mixed-subject drills to build speed.")
-
-    for pt in roadmap_points:
-        st.markdown(f"- {pt}")
+        for pt in roadmap_points:
+            st.markdown(f"- {pt}")
