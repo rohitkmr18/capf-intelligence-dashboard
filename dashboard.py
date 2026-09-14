@@ -48,6 +48,54 @@ with col5:
                       color_discrete_map={'Easy':'#00cc96', 'Moderate':'#636efa', 'Hard':'#ef553b'})
     st.plotly_chart(fig_diff, use_container_width=True)
 
-# --- Raw Data Explorer ---
-st.markdown("### Question Database")
-st.dataframe(filtered_df[['q_num', 'subject', 'theme', 'question', 'difficulty', 'q_pattern']])
+# --- Interactive Practice Mode ---
+st.markdown("### 📝 Practice Mode")
+st.write("Test your knowledge based on the filters selected above.")
+
+# Iterate through the filtered dataframe
+for index, row in filtered_df.iterrows():
+    st.markdown(f"**Q{row['q_num']}. {row['question']}**")
+    
+    # Create a unique key for each question using its ID
+    q_key = f"submitted_{row['question_id']}"
+    
+    # Initialize session state for this question if it doesn't exist
+    if q_key not in st.session_state:
+        st.session_state[q_key] = False
+
+    # Format the options
+    options = [
+        f"A) {row['opt_a']}",
+        f"B) {row['opt_b']}",
+        f"C) {row['opt_c']}",
+        f"D) {row['opt_d']}"
+    ]
+    
+    # Radio button for user selection
+    user_choice = st.radio("Select your answer:", options, key=f"radio_{row['question_id']}", index=None)
+    
+    # Check Answer Button
+    if st.button("Check Answer", key=f"btn_{row['question_id']}"):
+        st.session_state[q_key] = True
+
+    # Display logic after submission
+    if st.session_state[q_key]:
+        if user_choice:
+            # Extract the letter (A, B, C, or D) from the user's choice
+            selected_letter = user_choice[0] 
+            correct_letter = str(row['final_opt']).strip()
+            
+            # Compare and display results
+            if selected_letter == correct_letter:
+                st.success(f"✅ **Correct!**")
+            else:
+                st.error(f"❌ **Incorrect.** The correct answer is **{correct_letter}**.")
+            
+            # Show explanation and source
+            st.info(f"**Explanation:**\n{row['explanation']}")
+            st.caption(f"**Source:** {row['source']}")
+        else:
+            st.warning("Please select an option before checking.")
+            st.session_state[q_key] = False # Reset if they clicked without selecting
+    
+    st.divider() # Adds a horizontal line between questions
