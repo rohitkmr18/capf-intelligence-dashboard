@@ -180,17 +180,7 @@ else:
 
         cleaned_question = clean_text(row['question'])
         st.markdown(f"**Q{q_num}. {cleaned_question}**")
-
-        # Statement Striker (for multi-statement questions)
-        if "Statement" in str(row.get('q_pattern', '')):
-            eliminated = st.multiselect(
-                "🛠️ Statement Striker (Eliminate false statements):",
-                ["1", "2", "3", "4"],
-                key=f"strike_{qid}"
-            )
-            if eliminated:
-                st.caption(f"💡 *Eliminated: Statement(s) {', '.join(eliminated)}. Discard options containing them.*")
-
+        
         options = [
             f"A) {row['opt_a']}",
             f"B) {row['opt_b']}",
