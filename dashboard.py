@@ -780,13 +780,30 @@ else:
             if st.session_state.get('scroll_trigger'):
                 scroll_js = """
                 <script>
-                    var body = window.parent.document.querySelector(".main");
-                    if (body) { body.scrollTo({top: 0, behavior: 'smooth'}); }
+                    // Use a delay to ensure Streamlit finishes rendering the DOM before scrolling
+                    setTimeout(function() {
+                        var doc = window.parent.document;
+                        
+                        // Target 1: Modern Streamlit scroll container
+                        var viewContainer = doc.querySelector('[data-testid="stAppViewContainer"]');
+                        if (viewContainer) {
+                            viewContainer.scrollTo({top: 0, behavior: 'smooth'});
+                        }
+                        
+                        // Target 2: Older Streamlit versions
+                        var mainClass = doc.querySelector('.main');
+                        if (mainClass) {
+                            mainClass.scrollTo({top: 0, behavior: 'smooth'});
+                        }
+                        
+                        // Target 3: Absolute fallback
+                        window.parent.scrollTo({top: 0, behavior: 'smooth'});
+                        
+                    }, 150); // 150ms delay is usually the sweet spot for Streamlit
                 </script>
                 """
                 components.html(scroll_js, height=0)
                 st.session_state['scroll_trigger'] = False
-
             # Active Grid Visualizer (non-clickable, just shows progress)
             if full_paper:
                 with st.expander("📊 Active Navigator Grid", expanded=False):
