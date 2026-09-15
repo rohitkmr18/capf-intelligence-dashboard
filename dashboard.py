@@ -704,9 +704,10 @@ else:
             # ==========================================
             st.markdown("### 🗺️ Question Grid (Click to Jump)")
             
+            # Start the container
             grid_html = '<div style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 20px;">'
             
-            # Sort by q_num just for the grid view so it reads 1, 2, 3 chronologically
+            # Ensure index is reset so we don't accidentally iterate over pandas indices
             for _, row in analysis_df.sort_values('q_num').iterrows():
                 q_num = row['q_num']
                 status = row['Status']
@@ -719,8 +720,8 @@ else:
                 else:
                     bg_color = "#94A3B8" # Grey
                     
-                # The anchor tag intercepts the click and scrolls to the div id
-                grid_html += f'''
+                # Create the individual square
+                square = f'''
                     <a href="#q-{q_num}" style="text-decoration: none;">
                         <div style="width:40px; height:40px; background-color:{bg_color}; 
                                     display:flex; align-items:center; justify-content:center; 
@@ -731,12 +732,14 @@ else:
                         </div>
                     </a>
                 '''
+                grid_html += square
+                
+            # Close the container
             grid_html += '</div>'
             
-            # unsafe_allow_html=True prevents Streamlit from leaking raw HTML text
-            st.markdown(grid_html, unsafe_allow_html=True)
+            # Use st.components.v1.html for a safer iframe render to prevent CSS leakage
+            components.html(grid_html, height=200, scrolling=True)
             st.divider()
-
             # 4. Detailed Review (Sorted by Incorrect First)
             st.markdown("### 📝 Detailed Review")
             st.caption("Sorted by priority: 🔴 Incorrect ➔ ⚪ Skipped ➔ 🟢 Correct")
