@@ -27,7 +27,7 @@ except FileNotFoundError:
     # Fallback to a solid color if the image is missing
     background_css = '#4B5320'
 
-# Define the CSS as a completely normal string (NO 'f' in front of the quotes!)
+# Notice there is NO 'f' before the triple quotes below!
 css_template = """
 <style>
 /* Base Typography & Negative Space */
@@ -151,7 +151,8 @@ div.stRadio > div[role="radiogroup"] > label:hover {
 final_css = css_template.replace("REPLACE_ME_BACKGROUND", background_css)
 
 # Inject the final CSS into Streamlit
-st.markdown(final_css, unsafe_allow_html=True)/* Briefing Card */
+st.markdown(final_css, unsafe_allow_html=True)
+/* Briefing Card */
 .briefing-card {
     background: #FFFFFF;
     border: 1px solid #E2E8F0;
