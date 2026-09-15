@@ -27,56 +27,55 @@ except FileNotFoundError:
     # Fallback to a solid color if the image is missing
     background_css = '#4B5320'
 
-# Inject the CSS
-st.markdown(f"""
+# Inject the CSS safely using string concatenation to avoid f-string brace errors
+st.markdown("""
 <style>
 /* Base Typography & Negative Space */
-html, body, [class*="css"] {{
+html, body, [class*="css"] {
     font-family: 'Inter', 'Segoe UI', sans-serif;
-}}
-.block-container {{
+}
+.block-container {
     padding-top: 2rem !important;
     padding-bottom: 2rem !important;
-}}
-
+}
+""" + f"""
 /* Banner Design - Tactical Camo Frame */
 .hero-banner {{
     background-image: {background_css};
-    background-size: 100% 100%; /* Stretches the frame to exactly fit the banner */
+    background-size: 100% 100%; 
     background-position: center;
     background-repeat: no-repeat;
-    background-color: #F8FAFC; /* Fallback color for the center */
-    padding: 50px 20px; /* Increased padding to keep text inside the clear center of the frame */
+    background-color: #F8FAFC; 
+    padding: 50px 20px; 
     border-radius: 12px;
     text-align: center;
     margin-bottom: 15px;
     box-shadow: 0 6px 15px rgba(0,0,0,0.5);
 }}
-
-.hero-title {{
+""" + """
+.hero-title {
     font-family: 'Black Ops One', 'Impact', sans-serif;
     font-weight: 400;
     font-size: 2.8rem;
     margin-bottom: 5px;
     line-height: 1.2;
-    color: #0F172A; /* Dark text to contrast with the light center of the image */
+    color: #0F172A; 
     letter-spacing: 2px;
     text-transform: uppercase;
     text-shadow: 2px 2px 4px rgba(255, 255, 255, 0.8);
-}}
-
-.hero-tagline {{
+}
+.hero-tagline {
     font-family: 'Inter', 'Segoe UI', sans-serif;
     font-size: 1.15rem;
-    color: #1E293B; /* Dark text */
+    color: #1E293B; 
     margin-top: 5px;
     font-weight: 800;
     letter-spacing: 1.5px;
     text-transform: uppercase;
-}}
+}
 
 /* Credential Badge */
-.cred-badge {{
+.cred-badge {
     background-color: #F8FAFC;
     border-left: 5px solid #F59E0B;
     padding: 14px;
@@ -87,17 +86,63 @@ html, body, [class*="css"] {{
     font-weight: 700;
     color: #0F172A;
     box-shadow: 0 2px 4px rgba(0,0,0,0.02);
-}}
+}
 
 /* Dashboard Description */
-.dash-intro {{
+.dash-intro {
     text-align: center;
     font-size: 0.95rem;
     color: #475569;
     line-height: 1.6;
     margin-bottom: 30px;
     padding: 0 10px;
-}}
+}
+
+/* Briefing Card */
+.briefing-card {
+    background: #FFFFFF;
+    border: 1px solid #E2E8F0;
+    border-radius: 12px;
+    padding: 24px;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+    margin-bottom: 25px;
+}
+.briefing-header {
+    font-size: 1.3rem;
+    font-weight: 800;
+    color: #0F172A;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.briefing-item {
+    margin-bottom: 12px;
+    line-height: 1.6;
+    color: #334155;
+    font-size: 0.96rem;
+}
+
+/* Mobile-Optimized Radio Buttons */
+div.stRadio > div[role="radiogroup"] > label {
+    padding: 14px 18px !important;
+    margin-bottom: 10px !important;
+    background-color: #F8FAFC;
+    border-radius: 8px;
+    border: 1px solid #E2E8F0;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+div.stRadio > div[role="radiogroup"] > label:hover {
+    border-color: #3B82F6;
+    background-color: #EFF6FF;
+}
+
+/* Metric Typography Override */
+[data-testid="stMetricValue"] {
+    font-family: 'Comic Sans MS', 'Chalkboard SE', 'Marker Felt', sans-serif !important;
+    color: #1E3A8A;
+}
 </style>
 """, unsafe_allow_html=True)
 /* Briefing Card */
