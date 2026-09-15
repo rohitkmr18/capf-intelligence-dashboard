@@ -1,33 +1,37 @@
-import requests
-import io
 import streamlit as st
 import pandas as pd
 import plotly.express as px
 import time
 import streamlit.components.v1 as components
+import base64
+import requests
+import io
 
 # ==========================================
-# --- PAGE CONFIG & CSS INJECTION ---
+# --- PAGE CONFIG ---
 # ==========================================
 st.set_page_config(page_title="Defence Pathshala | PYQ Engine", layout="centered", initial_sidebar_state="collapsed")
 
-import base64
-
-# Function to encode the local image
+# ==========================================
+# --- IMAGE ENCODING & CSS INJECTION ---
+# ==========================================
 def get_base64_of_bin_file(bin_file):
-    with open(bin_file, 'rb') as f:
-        data = f.read()
-    return base64.b64encode(data).decode()
+    try:
+        with open(bin_file, 'rb') as f:
+            data = f.read()
+        return base64.b64encode(data).decode()
+    except FileNotFoundError:
+        return None
 
-# Read the camo frame image
-try:
-    camo_img_base64 = get_base64_of_bin_file('images.jpg')
-    background_css = f'url("data:image/jpeg;base64,{camo_img_base64}")'
-except FileNotFoundError:
-    # Fallback to a solid color if the image is missing
+# Attempt to read the camo image
+camo_img_base64 = get_base64_of_bin_file('images.jpg')
+
+if camo_img_base64:
+    background_css = 'url("data:image/jpeg;base64,' + camo_img_base64 + '")'
+else:
     background_css = '#4B5320'
 
-# Notice there is NO 'f' before the triple quotes below!
+# Define the CSS as a standard string (No 'f' before the quotes!)
 css_template = """
 <style>
 /* Base Typography & Negative Space */
@@ -147,59 +151,9 @@ div.stRadio > div[role="radiogroup"] > label:hover {
 </style>
 """
 
-# Safely swap the placeholder for the actual image variable
+# Inject the image into the CSS string using replace
 final_css = css_template.replace("REPLACE_ME_BACKGROUND", background_css)
-
-# Inject the final CSS into Streamlit
 st.markdown(final_css, unsafe_allow_html=True)
-/* Briefing Card */
-.briefing-card {
-    background: #FFFFFF;
-    border: 1px solid #E2E8F0;
-    border-radius: 12px;
-    padding: 24px;
-    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
-    margin-bottom: 25px;
-}
-.briefing-header {
-    font-size: 1.3rem;
-    font-weight: 800;
-    color: #0F172A;
-    margin-bottom: 16px;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
-.briefing-item {
-    margin-bottom: 12px;
-    line-height: 1.6;
-    color: #334155;
-    font-size: 0.96rem;
-}
-
-/* Mobile-Optimized Radio Buttons */
-div.stRadio > div[role="radiogroup"] > label {
-    padding: 14px 18px !important;
-    margin-bottom: 10px !important;
-    background-color: #F8FAFC;
-    border-radius: 8px;
-    border: 1px solid #E2E8F0;
-    cursor: pointer;
-    transition: all 0.2s ease;
-}
-div.stRadio > div[role="radiogroup"] > label:hover {
-    border-color: #3B82F6;
-    background-color: #EFF6FF;
-}
-
-/* Metric Typography Override */
-[data-testid="stMetricValue"] {
-    font-family: 'Comic Sans MS', 'Chalkboard SE', 'Marker Felt', sans-serif !important;
-    color: #1E3A8A;
-}
-</style>
-""", unsafe_allow_html=True)
-
 # ==========================================
 # --- HELPER FUNCTIONS ---
 # ==========================================
