@@ -359,13 +359,10 @@ if not st.session_state['is_full_paper']:
 # --- CENTRALIZED FILTERS & EXAM TOGGLE ---
 # ==========================================
 with st.expander("⚙️ Configure Mocks", expanded=True):
-    # Dynamically set full paper specs based on the selected exam
     if selected_exam == "CDS":
         full_paper_label = "⏱️ Attempt Full Paper (120 Questions - 2 Hours)"
-        cds_time_seconds = 7200 # 2 hours
     else:
         full_paper_label = "⏱️ Attempt Full Paper (125 Questions - 2 Hours)"
-        cds_time_seconds = 7200
 
     full_paper = st.checkbox(full_paper_label, key="is_full_paper", on_change=reset_test_state)
     
@@ -383,10 +380,10 @@ with st.expander("⚙️ Configure Mocks", expanded=True):
             on_change=reset_test_state
         )
         
-        if 'subject' in exam_df.columns and 'difficulty' in exam_df.columns:
+        if 'subject' in exam_df.columns and 'difficulty' in exam_df.columns and selected_subject and selected_difficulty:
             filtered_df = exam_df[(exam_df['subject'].isin(selected_subject)) & (exam_df['difficulty'].isin(selected_difficulty))]
         else:
-            filtered_df = exam_df
+            filtered_df = pd.DataFrame() # Empty until user selects filters
         
         st.markdown("---")
         mode = st.radio(
@@ -396,17 +393,20 @@ with st.expander("⚙️ Configure Mocks", expanded=True):
         )
         is_exam_mode = "Full Mock Exam" in mode
     else:
+        # FORCE filtered_df to equal exam_df when Full Paper is checked, ignoring blank multiselects
         filtered_df = exam_df
-        st.warning(f"⏱️ **Timed Mock Activated for {selected_exam}.** The interface is locked to Full Mock Exam mode.")
+        st.warning(f"⏱️ **Timed Mock Activated for {selected_exam} ({len(filtered_df)} Questions Loaded).** The interface is locked to Full Mock Exam mode.")
         is_exam_mode = True
+
 # ==========================================
 # --- MAIN CONTENT RENDER (TEST ARENA) ---
 # ==========================================
-if filtered_df.empty:
+if filtered_df.empty and not full_paper:
     st.info("👆 Select subjects and difficulty levels in the configuration menu above to generate your custom practice set of PYQ.")
+elif filtered_df.empty and full_paper:
+    st.error(f"🚨 **Dataset Empty:** No rows found in Google Sheet for `{selected_exam}` | Year: `{selected_year}` | Cycle: `{selected_cycle if selected_exam == 'CDS' else 'N/A'}`.")
 else:
     st.markdown("## 🎯 Test Arena")
-
     # ==========================================
     # --- GATEKEEPER / PRE-EXAM BRIEFING ---
     # ==========================================
