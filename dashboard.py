@@ -20,30 +20,43 @@ html, body, [class*="css"] {
     padding-bottom: 2rem !important;
 }
 
-/* Banner Design */
+/* Banner Design - Tactical Military Theme */
 .hero-banner {
-    background: linear-gradient(135deg, #0F172A 0%, #1E3A8A 100%);
-    padding: 30px 20px;
+    /* Camouflage background pattern with a dark overlay for text legibility */
+    background: 
+        linear-gradient(rgba(15, 23, 42, 0.65), rgba(15, 23, 42, 0.85)),
+        url('https://www.transparenttextures.com/patterns/camouflage-pattern.png'),
+        #4B5320; /* Army Green base color */
+    padding: 35px 20px;
     border-radius: 12px;
     text-align: center;
     color: white;
     margin-bottom: 15px;
-    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    box-shadow: 0 6px 12px rgba(0,0,0,0.3);
+    border: 2px solid #3f471b;
 }
+
 .hero-title {
-    font-family: 'Comic Sans MS', 'Chalkboard SE', 'Marker Felt', sans-serif;
-    font-weight: 900;
-    font-size: 2.2rem;
-    margin-bottom: 0px;
-    line-height: 1.1;
-    color: #FFFFFF;
+    font-family: 'Black Ops One', 'Stencil', 'Impact', sans-serif;
+    font-weight: 400;
+    font-size: 2.5rem;
+    margin-bottom: 5px;
+    line-height: 1.2;
+    color: #F8FAFC;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    text-shadow: 3px 3px 6px rgba(0, 0, 0, 0.9);
 }
+
 .hero-tagline {
-    font-size: 1.05rem;
-    color: #93C5FD;
+    font-family: 'Inter', 'Segoe UI', sans-serif;
+    font-size: 1.1rem;
+    color: #94A3B8;
     margin-top: 5px;
-    font-weight: 500;
-    letter-spacing: 0.5px;
+    font-weight: 600;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    text-shadow: 1px 1px 3px rgba(0,0,0,0.8);
 }
 
 /* Credential Badge */
@@ -143,7 +156,8 @@ def clean_text(text):
 # ==========================================
 @st.cache_data(ttl="1h") 
 def fetch_google_sheet():
-    sheet_url = "https://docs.google.com/spreadsheets/d/1bufEL9Fe-JtQLI8kSvdsI8T-4dSdiqaVBA-5pnoFuVY/gviz/tq?tqx=out:csv&gid=0"
+    # Replace the URL below with your actual Google Sheets export URL
+    sheet_url = "https://docs.google.com/spreadsheets/d/YOUR_SHEET_ID_HERE/export?format=csv&gid=0"
     return pd.read_csv(sheet_url)
 
 # Lock the data to the user's browser session on their first load
@@ -193,51 +207,73 @@ st.markdown('<div class="cred-badge">Engineered by an IIT Kanpur graduate, UPSC 
 st.markdown('<div class="dash-intro">Transform raw PYQs into a tactical, data-driven preparation engine. Stop passive reading and start actively eliminating. This intelligence dashboard analyzes your performance patterns, isolates specific examiner traps, and dynamically builds a personalized syllabus roadmap to maximize your final score.</div>', unsafe_allow_html=True)
 
 # ==========================================
-# --- EXAM & CYCLE SELECTION (NEW COMPONENT) ---
+# --- EXAM, YEAR, & CYCLE SELECTION ---
 # ==========================================
 if not st.session_state['is_full_paper']:
-    st.markdown("### 🎯 Select Examination & Cycle")
+    st.markdown("### 🎯 Select Database Parameters")
+    
+    # Create columns for a cleaner UI layout
+    col1, col2, col3 = st.columns(3)
     
     # 1. Target Exam Dropdown
-    if 'exam' in df.columns:
-        exam_options = list(df['exam'].dropna().unique())
-    else:
-        exam_options = ["CAPF-AC", "CDS"] # Fallback
+    with col1:
+        if 'exam' in df.columns:
+            exam_options = list(df['exam'].dropna().unique())
+        else:
+            exam_options = ["CAPF-AC", "CDS"] # Fallback
+            
+        selected_exam = st.selectbox(
+            "Target Exam:",
+            options=exam_options,
+            key="exam_selection",
+            on_change=reset_test_state
+        )
 
-    selected_exam = st.selectbox(
-        "Target Exam:",
-        options=exam_options,
-        key="exam_selection",
-        on_change=reset_test_state
-    )
+    # 2. Exam Year Dropdown
+    with col2:
+        if 'exam' in df.columns and 'year' in df.columns:
+            available_years = list(df[df['exam'] == selected_exam]['year'].dropna().unique())
+        else:
+            available_years = ["2025", "2026"] # Fallback
+            
+        selected_year = st.selectbox(
+            "Exam Year:",
+            options=available_years,
+            key="year_selection",
+            on_change=reset_test_state
+        )
 
-    # 2. Year/Cycle Dropdown (Dynamically filtered based on Exam)
-    if 'exam' in df.columns and 'year' in df.columns:
-        # Filter the years available for the chosen exam from the dataset
-        available_years = list(df[df['exam'] == selected_exam]['year'].dropna().unique())
-    else:
-        # Fallback if columns are missing
-        available_years = ["2025"] if selected_exam == "CAPF-AC" else ["September 2026"]
-
-    selected_year = st.selectbox(
-        "Exam Year/Cycle:",
-        options=available_years,
-        key="year_selection",
-        on_change=reset_test_state
-    )
-
+    # 3. Exam Cycle Dropdown (Appears ONLY for CDS)
+    selected_cycle = None
+    with col3:
+        if selected_exam == "CDS":
+            selected_cycle = st.selectbox(
+                "Exam Cycle:",
+                options=["I", "II"],
+                key="cycle_selection",
+                on_change=reset_test_state
+            )
 else:
     # Retain selected state when full paper mode hides the selectors
     selected_exam = st.session_state.get('exam_selection', "CAPF-AC")
     selected_year = st.session_state.get('year_selection', "2025")
+    selected_cycle = st.session_state.get('cycle_selection', None)
 
-# Filter the master dataframe to match BOTH the selected exam and year
+# Base filter (Exam + Year)
 if 'exam' in df.columns and 'year' in df.columns:
     exam_df = df[(df['exam'] == selected_exam) & (df['year'] == selected_year)]
+    
+    # Additional cycle filter for CDS
+    if selected_exam == "CDS" and selected_cycle:
+        if 'cycle' in exam_df.columns:
+            exam_df = exam_df[exam_df['cycle'] == selected_cycle]
+        else:
+            st.warning("⚠️ 'cycle' column not found in database. Showing all CDS questions for the selected year.")
 else:
     exam_df = df
 
 st.markdown("---")
+
 # ==========================================
 # --- GLOBAL DATABASE OVERVIEW ---
 # ==========================================
