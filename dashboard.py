@@ -332,21 +332,20 @@ with st.expander("⚙️ Configure Mocks", expanded=True):
         )
         is_exam_mode = "Full Mock Exam" in mode
     else:
-        # Force filtered_df to load all rows of exam_df, bypassing blank multiselects
         filtered_df = exam_df
         is_exam_mode = True
-# PERSIST filtered_df in session state so it survives st.rerun() when starting the test
-st.session_state['active_filtered_df'] = filtered_df
+
 # ==========================================
 # --- MAIN CONTENT RENDER (TEST ARENA) ---
 # ==========================================
 if filtered_df.empty and not full_paper:
     st.info("👆 Select subjects and difficulty levels in the configuration menu above to generate your custom practice set of PYQ.")
 elif filtered_df.empty and full_paper:
-    st.error(f"🚨 **Dataset Empty:** No rows found in Google Sheet for `{selected_exam}` | Year: `{selected_year}` | Cycle: `{selected_cycle if selected_exam == 'CDS' else 'N/A'}`. Please verify your Google Sheet data rows.")
+    st.error(f"🚨 **Dataset Empty:** No rows found in Google Sheet for `{selected_exam}` | Year: `{selected_year}` | Cycle: `{selected_cycle if selected_exam == 'CDS' else 'N/A'}`.")
 else:
     st.markdown("## 🎯 Test Arena")
-# ==========================================
+
+    # ==========================================
     # --- GATEKEEPER / PRE-EXAM BRIEFING ---
     # ==========================================
     if full_paper and not st.session_state['exam_started']:
@@ -376,7 +375,6 @@ else:
             st.session_state['start_time'] = time.time()
             st.rerun()
     else:
-        # Safely bind filtered_df directly to exam_df when the test is running
         filtered_df = exam_df
         # ==========================================
         # --- JS FLOATING TIMER INJECTION ---
