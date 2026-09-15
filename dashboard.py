@@ -148,6 +148,12 @@ div.stRadio > div[role="radiogroup"] > label:hover {
     font-family: 'Comic Sans MS', 'Chalkboard SE', 'Marker Felt', sans-serif !important;
     color: #1E3A8A;
 }
+
+/* Fix for hash anchor scrolling offset */
+.anchor-offset {
+    position: relative;
+    top: -80px; 
+}
 </style>
 """
 
@@ -169,6 +175,7 @@ def reset_test_state():
     st.session_state['start_time'] = None
     st.session_state['auto_submitted'] = False
     st.session_state['current_page'] = 0
+    st.session_state['scroll_trigger'] = False
 
 def clean_text(text):
     if pd.isna(text):
@@ -231,6 +238,8 @@ if 'current_page' not in st.session_state:
     st.session_state['current_page'] = 0
 if 'is_full_paper' not in st.session_state:
     st.session_state['is_full_paper'] = False
+if 'scroll_trigger' not in st.session_state:
+    st.session_state['scroll_trigger'] = False
 
 # ==========================================
 # --- HERO SECTION ---
@@ -274,7 +283,6 @@ if not is_full_paper_active:
     
     with col1:
         exam_options = list(df['exam'].dropna().unique()) if 'exam' in df.columns else ["CAPF-AC", "CDS"]
-        # Default index lookup safely
         default_exam_idx = exam_options.index(st.session_state['locked_exam']) if st.session_state['locked_exam'] in exam_options else 0
         
         selected_exam = st.selectbox(
@@ -314,7 +322,6 @@ if not is_full_paper_active:
             )
             st.session_state['locked_cycle'] = selected_cycle
 else:
-    # Retrieve locked choices safely from session memory so they never revert to CAPF
     selected_exam = st.session_state.get('locked_exam', "CAPF-AC")
     selected_year = st.session_state.get('locked_year', "2025")
     selected_cycle = st.session_state.get('locked_cycle', "I")
@@ -559,49 +566,173 @@ else:
 
         st.markdown("---")
 
-        # ==========================================
-        # --- HTML/CSS QUESTION NAVIGATOR GRID ---
-        # ==========================================
-        if full_paper and not st.session_state['exam_submitted']:
-            with st.expander("📊 Question Navigator Grid", expanded=False):
-                grid_html = '<div style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; text-align: center;">'
-                
-                for i, row in filtered_df.reset_index().iterrows():
-                    qid = str(row['question_id'])
-                    q_num = i + 1 
-                    
-                    if qid in st.session_state['marked_for_review']:
-                        bg_color = "#EF4444"
-                        text_color = "white"
-                    elif qid in st.session_state['user_answers']:
-                        bg_color = "#22C55E"
-                        text_color = "white"
-                    else:
-                        bg_color = "#E2E8F0"
-                        text_color = "#334155"
-                        
-                    cell_html = f'<div style="background-color: {bg_color}; color: {text_color}; padding: 10px; border-radius: 6px; font-weight: bold;">{q_num}</div>'
-                    grid_html += cell_html
-                    
-                grid_html += '</div>'
-                st.markdown(grid_html, unsafe_allow_html=True)
+        should_show_analysis = (is_exam_mode and st.session_state['exam_submitted']) or \
+                               (not is_exam_mode and len(st.session_state['checked_questions']) > 0)
 
         # ==========================================
-        # --- QUESTION RENDERING & PAGINATION ---
+        # --- PHASE 1: POST-TEST HIERARCHY ---
         # ==========================================
-        if is_exam_mode and st.session_state['exam_submitted']:
-            st.markdown("### 📝 Post-Submission Review")
-            st.write("Click on any question to expand explanations and log your errors.")
+        if should_show_analysis:
+            # 1. Evaluate Dataset First
+            records = []
+            eval_set = filtered_df if is_exam_mode else filtered_df[filtered_df['question_id'].astype(str).isin(st.session_state['checked_questions'])]
+
+            for _, row in eval_set.iterrows():
+                qid = str(row['question_id'])
+                user_pick = st.session_state['user_answers'].get(qid, "Unattempted")
+                correct_opt = str(row['final_opt']).strip()
+
+                if user_pick == "Unattempted":
+                    status = "Unattempted"
+                    sort_val = 2 # Middle priority
+                elif user_pick == correct_opt:
+                    status = "Correct"
+                    sort_val = 3 # Lowest priority
+                else:
+                    status = "Incorrect"
+                    sort_val = 1 # Highest priority (rendered first)
+
+                row_dict = row.to_dict()
+                row_dict.update({
+                    'User_Choice': user_pick,
+                    'Status': status,
+                    'Sort_Val': sort_val,
+                    'Error_Type': st.session_state['error_tags'].get(qid, "Uncategorized" if status == "Incorrect" else "N/A")
+                })
+                records.append(row_dict)
+
+            analysis_df = pd.DataFrame(records)
             
-            for index, row in filtered_df.iterrows():
+            # Metrics Calculations
+            total_questions = len(analysis_df)
+            attempted = len(analysis_df[analysis_df['Status'] != "Unattempted"])
+            correct = len(analysis_df[analysis_df['Status'] == "Correct"])
+            incorrect = len(analysis_df[analysis_df['Status'] == "Incorrect"])
+            unattempted = total_questions - attempted
+            
+            if selected_exam == "CDS":
+                pos_mark, neg_mark = 0.83, 0.27
+            else:
+                pos_mark, neg_mark = 2.0, 0.667
+                
+            net_score = (correct * pos_mark) - (incorrect * neg_mark)
+            max_score = total_questions * pos_mark
+            accuracy = (correct / attempted * 100) if attempted > 0 else 0
+
+            # 2. Render Metrics Tabs Top Level
+            st.markdown("## 📊 Performance Audit")
+            tab_score, tab_subject, tab_vault, tab_roadmap = st.tabs(["Scorecard", "Subject Precision", "Mistake Vault", "Strategic Roadmap"])
+
+            with tab_score:
+                m1, m2 = st.columns(2)
+                m1.metric("Net Score", f"{net_score:.2f} / {max_score:.0f}")
+                m2.metric("Accuracy", f"{accuracy:.1f}%")
+                m3, m4, m5 = st.columns(3)
+                m3.metric("Correct", correct)
+                m4.metric("Incorrect", incorrect)
+                m5.metric("Blank", unattempted)
+
+            with tab_subject:
+                if attempted > 0:
+                    subj_summary = analysis_df[analysis_df['Status'] != "Unattempted"].groupby('subject').agg(
+                        Attempted=('Status', 'count'),
+                        Correct=('Status', lambda x: (x == 'Correct').sum()),
+                        Incorrect=('Status', lambda x: (x == 'Incorrect').sum())
+                    )
+                    subj_summary['Accuracy %'] = (subj_summary['Correct'] / subj_summary['Attempted'] * 100).round(1)
+                    st.dataframe(subj_summary, use_container_width=True)
+                else:
+                    st.info("No questions attempted yet.")
+
+            with tab_vault:
+                mistakes_df = analysis_df[analysis_df['Status'] == "Incorrect"]
+                if not mistakes_df.empty:
+                    st.dataframe(
+                        mistakes_df[['q_num', 'subject', 'topic', 'User_Choice', 'final_opt', 'Error_Type']],
+                        use_container_width=True
+                    )
+                else:
+                    st.success("🎯 No errors recorded in this test set!")
+
+            with tab_roadmap:
+                roadmap_points = []
+                if attempted > 0 and accuracy < 60:
+                    roadmap_points.append("⚠️ **Elimination Discipline:** Overall accuracy below 60%. Restrict speculative guessing.")
+                
+                if 'subj_summary' in locals() and not subj_summary.empty:
+                    weak_subjects = subj_summary[subj_summary['Accuracy %'] < 60].index.tolist()
+                    if weak_subjects:
+                        roadmap_points.append(f"📚 **Priority Revision:** Focus on **{', '.join(weak_subjects)}** (<60% accuracy).")
+
+                if not mistakes_df.empty:
+                    error_counts = mistakes_df['Error_Type'].value_counts()
+                    if not error_counts.empty:
+                        top_error = error_counts.idxmax()
+                        if top_error == "Conceptual Gap":
+                            roadmap_points.append("🧠 **Theory Re-anchoring:** 'Conceptual Gap' is dominant. Re-read standard sources for these topics.")
+                        elif top_error == "Factual Recall Failure":
+                            roadmap_points.append("📝 **Active Recall Drill:** Build 1-page cheat sheets for dates/articles.")
+                        elif top_error == "Silly Mistake / Misread":
+                            roadmap_points.append("🔍 **Question Decoupling:** Highlight 'NOT' and 'INCORRECT' before answering.")
+
+                if not roadmap_points:
+                    roadmap_points.append("🔥 **Maintain Consistency:** Excellent performance! Continue timed drills.")
+
+                for pt in roadmap_points:
+                    st.markdown(f"- {pt}")
+            
+            st.divider()
+
+            # 3. Interactive Navigation Grid (Post-Test)
+            st.markdown("### 🗺️ Question Grid (Click to Jump)")
+            grid_html = '<div style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 20px;">'
+            
+            # Sort by q_num just for the grid view so it reads 1, 2, 3 chronologically
+            for _, row in analysis_df.sort_values('q_num').iterrows():
+                q_num = row['q_num']
+                status = row['Status']
+                
+                if status == "Correct":
+                    bg_color = "#22C55E" # Green
+                elif status == "Incorrect":
+                    bg_color = "#EF4444" # Red
+                else:
+                    bg_color = "#94A3B8" # Grey
+                    
+                grid_html += f'''
+                    <a href="#q-{q_num}" style="text-decoration: none;">
+                        <div style="width:40px; height:40px; background-color:{bg_color}; 
+                                    display:flex; align-items:center; justify-content:center; 
+                                    border-radius:4px; color:white; font-weight:bold; 
+                                    cursor:pointer; font-size:14px; box-shadow: 0 1px 3px rgba(0,0,0,0.2);">
+                            {q_num}
+                        </div>
+                    </a>
+                '''
+            grid_html += '</div>'
+            st.markdown(grid_html, unsafe_allow_html=True)
+            st.divider()
+
+            # 4. Detailed Review (Sorted by Incorrect First)
+            st.markdown("### 📝 Detailed Review")
+            st.caption("Sorted by priority: 🔴 Incorrect ➔ ⚪ Skipped ➔ 🟢 Correct")
+            
+            analysis_df_sorted = analysis_df.sort_values(by=['Sort_Val', 'q_num'])
+
+            for _, row in analysis_df_sorted.iterrows():
                 qid = str(row['question_id'])
                 q_num = row['q_num']
+                status = row['Status']
                 correct_opt = str(row['final_opt']).strip()
-                user_pick = st.session_state['user_answers'].get(qid, "Unattempted")
+                user_pick = row['User_Choice']
                 
-                is_expanded = (user_pick != correct_opt)
+                icon = "❌" if status == "Incorrect" else "✅" if status == "Correct" else "⏸️"
+                is_expanded = (status == "Incorrect")
                 
-                with st.expander(f"Q{q_num}. {str(row['question'])[:60]}...", expanded=is_expanded):
+                # Invisible anchor for hash routing to work smoothly with fixed header
+                st.markdown(f'<div id="q-{q_num}" class="anchor-offset"></div>', unsafe_allow_html=True)
+                
+                with st.expander(f"{icon} Q{q_num} | {row['subject']}", expanded=is_expanded):
                     cleaned_question = clean_text(row['question'])
                     st.markdown(f"**Q{q_num}. {cleaned_question}**")
                     
@@ -621,9 +752,9 @@ else:
                             st.markdown(f"{opt_letter}) {opt_text}")
                     
                     st.markdown("---")
-                    if user_pick == "Unattempted":
+                    if status == "Unattempted":
                         st.warning("⚠️ **Status:** Unattempted")
-                    elif user_pick == correct_opt:
+                    elif status == "Correct":
                         st.success("🎯 **Status:** Correct")
                     else:
                         st.error("🚨 **Status:** Incorrect")
@@ -640,7 +771,47 @@ else:
                     st.info(f"**Explanation:**\n{cleaned_explanation}")
                     st.caption(f"**Source:** {row.get('source', 'N/A')}")
 
-        else:
+        # ==========================================
+        # --- ACTIVE TEST RENDERING (PAGINATED) ---
+        # ==========================================
+        elif not st.session_state['exam_submitted']:
+            
+            # Phase 1: Pagination JS Injector check
+            if st.session_state.get('scroll_trigger'):
+                scroll_js = """
+                <script>
+                    var body = window.parent.document.querySelector(".main");
+                    if (body) { body.scrollTo({top: 0, behavior: 'smooth'}); }
+                </script>
+                """
+                components.html(scroll_js, height=0)
+                st.session_state['scroll_trigger'] = False
+
+            # Active Grid Visualizer (non-clickable, just shows progress)
+            if full_paper:
+                with st.expander("📊 Active Navigator Grid", expanded=False):
+                    grid_html = '<div style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; text-align: center;">'
+                    
+                    for i, row in filtered_df.reset_index().iterrows():
+                        qid = str(row['question_id'])
+                        q_num = i + 1 
+                        
+                        if qid in st.session_state['marked_for_review']:
+                            bg_color = "#EF4444"
+                            text_color = "white"
+                        elif qid in st.session_state['user_answers']:
+                            bg_color = "#22C55E"
+                            text_color = "white"
+                        else:
+                            bg_color = "#E2E8F0"
+                            text_color = "#334155"
+                            
+                        cell_html = f'<div style="background-color: {bg_color}; color: {text_color}; padding: 10px; border-radius: 6px; font-weight: bold;">{q_num}</div>'
+                        grid_html += cell_html
+                        
+                    grid_html += '</div>'
+                    st.markdown(grid_html, unsafe_allow_html=True)
+            
             questions_per_page = 5 if full_paper else len(filtered_df)
             total_pages = (len(filtered_df) - 1) // questions_per_page + 1
             
@@ -714,127 +885,25 @@ else:
 
                 st.divider()
             
+            # Phase 1: Pagination Logic with Scroll Trigger
             if full_paper:
                 col_prev, col_spacer, col_next = st.columns([1, 2, 1])
                 with col_prev:
                     if st.session_state['current_page'] > 0:
                         if st.button("⬅️ Previous Page", use_container_width=True):
                             st.session_state['current_page'] -= 1
+                            st.session_state['scroll_trigger'] = True
                             st.rerun()
                 with col_next:
                     if st.session_state['current_page'] < total_pages - 1:
                         if st.button("Next Page ➡️", use_container_width=True):
                             st.session_state['current_page'] += 1
+                            st.session_state['scroll_trigger'] = True
                             st.rerun()
                 st.markdown(f"<div style='text-align: center; color: gray;'>Page {st.session_state['current_page'] + 1} of {total_pages}</div>", unsafe_allow_html=True)
                 st.markdown("---")
 
-        if is_exam_mode and not st.session_state['exam_submitted']:
-            if st.button("🚀 Submit Mock Test & Generate Analysis", type="primary", use_container_width=True):
-                st.session_state['exam_submitted'] = True
-                st.rerun()
-
-        # ==========================================
-        # --- INDIVIDUAL ANALYSIS ENGINE (TABS) ---
-        # ==========================================
-        should_show_analysis = (is_exam_mode and st.session_state['exam_submitted']) or \
-                               (not is_exam_mode and len(st.session_state['checked_questions']) > 0)
-
-        if should_show_analysis:
-            st.markdown("## 📊 Performance Audit")
-
-            records = []
-            eval_set = filtered_df if is_exam_mode else filtered_df[filtered_df['question_id'].astype(str).isin(st.session_state['checked_questions'])]
-
-            for _, row in eval_set.iterrows():
-                qid = str(row['question_id'])
-                user_pick = st.session_state['user_answers'].get(qid, "Unattempted")
-                correct_opt = str(row['final_opt']).strip()
-
-                if user_pick == "Unattempted":
-                    status = "Unattempted"
-                elif user_pick == correct_opt:
-                    status = "Correct"
-                else:
-                    status = "Incorrect"
-
-                records.append({
-                    'Q_Num': row['q_num'],
-                    'Subject': row['subject'],
-                    'Topic': row['topic'] if 'topic' in row else "N/A",
-                    'User_Choice': user_pick,
-                    'Correct_Choice': correct_opt,
-                    'Status': status,
-                    'Error_Type': st.session_state['error_tags'].get(qid, "Uncategorized" if status == "Incorrect" else "N/A"),
-                })
-
-            analysis_df = pd.DataFrame(records)
-            total_questions = len(analysis_df)
-            attempted = len(analysis_df[analysis_df['Status'] != "Unattempted"])
-            correct = len(analysis_df[analysis_df['Status'] == "Correct"])
-            incorrect = len(analysis_df[analysis_df['Status'] == "Incorrect"])
-            unattempted = total_questions - attempted
-
-            net_score = (correct * 2.0) - (incorrect * 0.667)
-            max_score = total_questions * 2.0
-            accuracy = (correct / attempted * 100) if attempted > 0 else 0
-
-            tab_score, tab_subject, tab_vault, tab_roadmap = st.tabs(["Scorecard", "Subject Precision", "Mistake Vault", "Strategic Roadmap"])
-
-            with tab_score:
-                m1, m2 = st.columns(2)
-                m1.metric("Net Score", f"{net_score:.2f} / {max_score:.0f}")
-                m2.metric("Accuracy", f"{accuracy:.1f}%")
-                m3, m4, m5 = st.columns(3)
-                m3.metric("Correct", correct)
-                m4.metric("Incorrect", incorrect)
-                m5.metric("Blank", unattempted)
-
-            with tab_subject:
-                if attempted > 0:
-                    subj_summary = analysis_df[analysis_df['Status'] != "Unattempted"].groupby('Subject').agg(
-                        Attempted=('Status', 'count'),
-                        Correct=('Status', lambda x: (x == 'Correct').sum()),
-                        Incorrect=('Status', lambda x: (x == 'Incorrect').sum())
-                    )
-                    subj_summary['Accuracy %'] = (subj_summary['Correct'] / subj_summary['Attempted'] * 100).round(1)
-                    st.dataframe(subj_summary, use_container_width=True)
-                else:
-                    st.info("No questions attempted yet.")
-
-            with tab_vault:
-                mistakes_df = analysis_df[analysis_df['Status'] == "Incorrect"]
-                if not mistakes_df.empty:
-                    st.dataframe(
-                        mistakes_df[['Q_Num', 'Subject', 'Topic', 'User_Choice', 'Correct_Choice', 'Error_Type']],
-                        use_container_width=True
-                    )
-                else:
-                    st.success("🎯 No errors recorded in this test set!")
-
-            with tab_roadmap:
-                roadmap_points = []
-                if attempted > 0 and accuracy < 60:
-                    roadmap_points.append("⚠️ **Elimination Discipline:** Overall accuracy below 60%. Restrict speculative guessing.")
-                
-                if 'subj_summary' in locals() and not subj_summary.empty:
-                    weak_subjects = subj_summary[subj_summary['Accuracy %'] < 60].index.tolist()
-                    if weak_subjects:
-                        roadmap_points.append(f"📚 **Priority Revision:** Focus on **{', '.join(weak_subjects)}** (<60% accuracy).")
-
-                if not mistakes_df.empty:
-                    error_counts = mistakes_df['Error_Type'].value_counts()
-                    if not error_counts.empty:
-                        top_error = error_counts.idxmax()
-                        if top_error == "Conceptual Gap":
-                            roadmap_points.append("🧠 **Theory Re-anchoring:** 'Conceptual Gap' is dominant. Re-read NCERTs for these topics.")
-                        elif top_error == "Factual Recall Failure":
-                            roadmap_points.append("📝 **Active Recall Drill:** Build 1-page cheat sheets for dates/articles.")
-                        elif top_error == "Silly Mistake / Misread":
-                            roadmap_points.append("🔍 **Question Decoupling:** Highlight 'NOT' and 'INCORRECT' before answering.")
-
-                if not roadmap_points:
-                    roadmap_points.append("🔥 **Maintain Consistency:** Excellent performance! Continue timed drills.")
-
-                for pt in roadmap_points:
-                    st.markdown(f"- {pt}")
+            if is_exam_mode and not st.session_state['exam_submitted']:
+                if st.button("🚀 Submit Mock Test & Generate Analysis", type="primary", use_container_width=True):
+                    st.session_state['exam_submitted'] = True
+                    st.rerun()
