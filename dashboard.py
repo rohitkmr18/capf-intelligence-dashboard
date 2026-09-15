@@ -177,16 +177,13 @@ def clean_text(text):
 # ==========================================
 # --- DATA FETCHING & SESSION LOCKING ---
 # ==========================================
-@st.cache_data(ttl="1h", show_spinner=False) 
 def fetch_google_sheet():
     sheet_id = "1bufEL9Fe-JtQLI8kSvdsI8T-4dSdiqaVBA-5pnoFuVY"
     sheet_url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv&gid=0"
     
     try:
-        # requests handles Google's redirects much better than pandas' internal fetcher
         response = requests.get(sheet_url, timeout=10)
         
-        # If the sheet is private, Google returns a 403 or redirects to a login page (200 but HTML)
         if response.status_code != 200:
             st.error(f"HTTP Error {response.status_code}: Cannot access Google Sheet.")
             st.stop()
@@ -206,9 +203,7 @@ if 'master_db' not in st.session_state:
     with st.spinner("Downloading Tactical Database..."):
         st.session_state['master_db'] = fetch_google_sheet()
 
-# The rest of your application will use this session-locked dataframe
-df = st.session_state['master_db']
-# ==========================================
+df = st.session_state['master_db']# ==========================================
 # --- SESSION STATE INITIALIZATION ---
 # ==========================================
 if 'user_answers' not in st.session_state:
