@@ -346,14 +346,13 @@ elif filtered_df.empty and full_paper:
     st.error(f"🚨 **Dataset Empty:** No rows found in Google Sheet for `{selected_exam}` | Year: `{selected_year}` | Cycle: `{selected_cycle if selected_exam == 'CDS' else 'N/A'}`. Please verify your Google Sheet data rows.")
 else:
     st.markdown("## 🎯 Test Arena")
-    # ==========================================
+# ==========================================
     # --- GATEKEEPER / PRE-EXAM BRIEFING ---
     # ==========================================
     if full_paper and not st.session_state['exam_started']:
-        # Set dynamic marking and question info based on exam
         if selected_exam == "CDS":
             pattern_info = "120 Questions | 100 Marks (typically) | 2 Hours (120 Minutes)."
-            marking_info = "<strong>+0.83</strong> (or standard 1/3rd scaling) for correct answers, and <strong>-0.27</strong> negative marking penalty."
+            marking_info = "<strong>+0.83</strong> for correct answers, and <strong>-0.27</strong> negative marking penalty."
         else:
             pattern_info = "125 Questions | 250 Total Marks | 2 Hours (120 Minutes)."
             marking_info = "<strong>+2.0</strong> for correct answers, <strong>-0.67</strong> negative marking penalty for incorrect attempts, and <strong>0</strong> for unattempted questions."
@@ -376,9 +375,8 @@ else:
             st.session_state['exam_started'] = True
             st.session_state['start_time'] = time.time()
             st.rerun()
-        else:
-        # Replace occurrences of filtered_df with active_df in the rest of your rendering loop if needed, 
-        # or update the reference below:
+    else:
+        # Ensures filtered_df points safely to the active session data once the test starts
         filtered_df = active_df
         # ==========================================
         # --- JS FLOATING TIMER INJECTION ---
