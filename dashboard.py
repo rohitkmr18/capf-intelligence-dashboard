@@ -154,6 +154,7 @@ div.stRadio > div[role="radiogroup"] > label:hover {
 # Inject the image into the CSS string using replace
 final_css = css_template.replace("REPLACE_ME_BACKGROUND", background_css)
 st.markdown(final_css, unsafe_allow_html=True)
+
 # ==========================================
 # --- HELPER FUNCTIONS ---
 # ==========================================
@@ -204,6 +205,7 @@ if 'master_db' not in st.session_state:
         st.session_state['master_db'] = fetch_google_sheet()
 
 df = st.session_state['master_db']
+
 # ==========================================
 # --- SESSION STATE INITIALIZATION ---
 # ==========================================
@@ -243,11 +245,10 @@ st.markdown("""
 st.markdown('<div class="cred-badge">Engineered by an IIT Kanpur graduate, UPSC CAPF AC AIR 163 and 4-time CDS qualifier.</div>', unsafe_allow_html=True)
 
 st.markdown('<div class="dash-intro">Transform raw PYQs into a tactical, data-driven preparation engine. Stop passive reading and start actively eliminating. This intelligence dashboard analyzes your performance patterns, isolates specific examiner traps, and dynamically builds a personalized syllabus roadmap to maximize your final score.</div>', unsafe_allow_html=True)
+
 # ==========================================
 # --- EXAM, YEAR, & CYCLE SELECTION ---
 # ==========================================
-
-# Clean dataframe columns to prevent hidden space bugs
 if 'exam' in df.columns:
     df['exam'] = df['exam'].astype(str).str.strip()
 if 'year' in df.columns:
@@ -255,7 +256,6 @@ if 'year' in df.columns:
 if 'cycle' in df.columns:
     df['cycle'] = df['cycle'].astype(str).str.strip()
 
-# Check full paper state first to handle dropdown visibility cleanly
 is_full_paper_active = st.session_state.get('is_full_paper', False)
 
 if not is_full_paper_active:
@@ -275,12 +275,11 @@ if not is_full_paper_active:
         if selected_exam == "CDS":
             selected_cycle = st.selectbox("Exam Cycle:", options=["I", "II"], key="cycle_selection", on_change=reset_test_state)
 else:
-    # Pull locked choices from session state during full mock execution
     selected_exam = st.session_state.get('exam_selection', "CAPF-AC")
     selected_year = st.session_state.get('year_selection', "2025")
     selected_cycle = st.session_state.get('cycle_selection', None)
 
-# --- UNIFIED DATAFRAME FILTERING ---
+# Unified Datasets Filtering
 if 'exam' in df.columns and 'year' in df.columns:
     exam_df = df[(df['exam'] == str(selected_exam).strip()) & (df['year'] == str(selected_year).strip())]
     
@@ -291,6 +290,50 @@ if 'exam' in df.columns and 'year' in df.columns:
             st.warning("⚠️ 'cycle' column not found in database. Showing all CDS questions for the selected year.")
 else:
     exam_df = df
+
+st.markdown("---")
+
+# ==========================================
+# --- GLOBAL DATABASE OVERVIEW ---
+# ==========================================
+st.markdown(f"### 📊 Database Overview: {selected_exam} {selected_year}")
+
+if not exam_df.empty:
+    col_m1, col_m2 = st.columns(2)
+    col_m1.metric("Total Questions", len(exam_df))
+    col_m2.metric("Active Dataset", f"{selected_exam} {selected_year}")
+
+    c1, c2, c3 = st.columns(3)
+    chart_config = {'displayModeBar': False}
+
+    with c1:
+        if 'subject' in exam_df.columns:
+            fig_sub = px.pie(exam_df, names='subject', hole=0.5, title="Subject Weightage")
+            fig_sub.update_traces(textposition='inside', textinfo='label+value', hovertemplate="%{label}: %{value} Questions<extra></extra>")
+            fig_sub.update_layout(dragmode=False, showlegend=False, margin=dict(t=30, b=10, l=10, r=10))
+            fig_sub.update_xaxes(fixedrange=True)
+            fig_sub.update_yaxes(fixedrange=True)
+            st.plotly_chart(fig_sub, use_container_width=True, config=chart_config, key="global_subject_chart")
+
+    with c2:
+        if 'q_pattern' in exam_df.columns:
+            fig_pattern = px.pie(exam_df, names='q_pattern', hole=0.5, title="Question Structures")
+            fig_pattern.update_traces(textposition='inside', textinfo='label+value', hovertemplate="%{label}: %{value} Questions<extra></extra>")
+            fig_pattern.update_layout(dragmode=False, showlegend=False, margin=dict(t=30, b=10, l=10, r=10))
+            fig_pattern.update_xaxes(fixedrange=True)
+            fig_pattern.update_yaxes(fixedrange=True)
+            st.plotly_chart(fig_pattern, use_container_width=True, config=chart_config, key="global_pattern_chart")
+
+    with c3:
+        if 'difficulty' in exam_df.columns:
+            fig_diff = px.pie(exam_df, names='difficulty', hole=0.5, title="Difficulty Level")
+            fig_diff.update_traces(textposition='inside', textinfo='label+value', hovertemplate="%{label}: %{value} Questions<extra></extra>")
+            fig_diff.update_layout(dragmode=False, showlegend=False, margin=dict(t=30, b=10, l=10, r=10))
+            fig_diff.update_xaxes(fixedrange=True)
+            fig_diff.update_yaxes(fixedrange=True)
+            st.plotly_chart(fig_diff, use_container_width=True, config=chart_config, key="global_difficulty_chart")
+else:
+    st.warning("⚠️ No data available in `exam_df` to render overview charts.")
 
 st.markdown("---")
 
