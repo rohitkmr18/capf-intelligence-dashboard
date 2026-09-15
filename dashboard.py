@@ -167,6 +167,8 @@ if 'auto_submitted' not in st.session_state:
     st.session_state['auto_submitted'] = False
 if 'current_page' not in st.session_state:
     st.session_state['current_page'] = 0
+if 'is_full_paper' not in st.session_state:
+    st.session_state['is_full_paper'] = False
 
 # ==========================================
 # --- HERO SECTION ---
@@ -183,10 +185,55 @@ st.markdown('<div class="cred-badge">Engineered by an IIT Kanpur graduate, UPSC 
 st.markdown('<div class="dash-intro">Transform raw PYQs into a tactical, data-driven preparation engine. Stop passive reading and start actively eliminating. This intelligence dashboard analyzes your performance patterns, isolates specific examiner traps, and dynamically builds a personalized syllabus roadmap to maximize your final score.</div>', unsafe_allow_html=True)
 
 # ==========================================
+# --- GLOBAL DATABASE OVERVIEW ---
+# ==========================================
+if not st.session_state['is_full_paper']:
+    st.markdown("### 📊 Database Overview")
+    col1, col2 = st.columns(2)
+    col1.metric("Total Questions", len(df))
+
+    if 'exam' in df.columns and 'year' in df.columns:
+        unique_exams = df[['exam', 'year']].drop_duplicates()
+        exam_label = ", ".join([f"{row['exam']} {row['year']}" for _, row in unique_exams.iterrows()])
+    else:
+        exam_label = "UPSC CAPF-AC"
+    col2.metric("Available Exams", exam_label)
+
+    c1, c2, c3 = st.columns(3)
+    chart_config = {'displayModeBar': False}
+
+    with c1:
+        fig_sub = px.pie(df, names='subject', hole=0.5, title="Subject Weightage")
+        fig_sub.update_traces(textposition='inside', textinfo='label+value', hovertemplate="%{label}: %{value} Questions<extra></extra>")
+        fig_sub.update_layout(dragmode=False, showlegend=False, margin=dict(t=30, b=10, l=10, r=10))
+        fig_sub.update_xaxes(fixedrange=True)
+        fig_sub.update_yaxes(fixedrange=True)
+        st.plotly_chart(fig_sub, use_container_width=True, config=chart_config, key="global_subject_chart")
+
+    with c2:
+        fig_pattern = px.pie(df, names='q_pattern', hole=0.5, title="Question Structures")
+        fig_pattern.update_traces(textposition='inside', textinfo='label+value', hovertemplate="%{label}: %{value} Questions<extra></extra>")
+        fig_pattern.update_layout(dragmode=False, showlegend=False, margin=dict(t=30, b=10, l=10, r=10))
+        fig_pattern.update_xaxes(fixedrange=True)
+        fig_pattern.update_yaxes(fixedrange=True)
+        st.plotly_chart(fig_pattern, use_container_width=True, config=chart_config, key="global_pattern_chart")
+
+    with c3:
+        if 'difficulty' in df.columns:
+            fig_diff = px.pie(df, names='difficulty', hole=0.5, title="Difficulty Level")
+            fig_diff.update_traces(textposition='inside', textinfo='label+value', hovertemplate="%{label}: %{value} Questions<extra></extra>")
+            fig_diff.update_layout(dragmode=False, showlegend=False, margin=dict(t=30, b=10, l=10, r=10))
+            fig_diff.update_xaxes(fixedrange=True)
+            fig_diff.update_yaxes(fixedrange=True)
+            st.plotly_chart(fig_diff, use_container_width=True, config=chart_config, key="global_difficulty_chart")
+
+    st.markdown("---")
+
+# ==========================================
 # --- CENTRALIZED FILTERS & EXAM TOGGLE ---
 # ==========================================
 with st.expander("⚙️ Configure Mocks", expanded=True):
-    full_paper = st.checkbox("⏱️ Attempt Full Paper (125 Questions - 2 Hours)", on_change=reset_test_state)
+    full_paper = st.checkbox("⏱️ Attempt Full Paper (125 Questions - 2 Hours)", key="is_full_paper", on_change=reset_test_state)
     
     if not full_paper:
         selected_subject = st.multiselect(
@@ -197,7 +244,7 @@ with st.expander("⚙️ Configure Mocks", expanded=True):
         )
         selected_difficulty = st.multiselect(
             "Select Difficulty", 
-            df['difficulty'].unique(), 
+            df['difficulty'].unique() if 'difficulty' in df.columns else [], 
             default=[], 
             on_change=reset_test_state
         )
@@ -216,75 +263,11 @@ with st.expander("⚙️ Configure Mocks", expanded=True):
         is_exam_mode = True
 
 # ==========================================
-# --- GLOBAL DATABASE OVERVIEW (HIDDEN IN FULL EXAM) ---
-# ==========================================
-if not full_paper:
-    st.markdown("### 📊 Database Overview")
-    col1, col2 = st.columns(2)
-    col1.metric("Total Questions", len(df))
-
-    if 'exam' in df.columns and 'year' in df.columns:
-        unique_exams = df[['exam', 'year']].drop_duplicates()
-        exam_label = ", ".join([f"{row['exam']} {row['year']}" for _, row in unique_exams.iterrows()])
-    else:
-        exam_label = "UPSC CAPF-AC 2025"
-    col2.metric("Available Exams", exam_label)
-
-    c1, c2 = st.columns(2)
-    with c1:
-        fig_sub = px.pie(df, names='subject', hole=0.5, title="Subject Weightage")
-        fig_sub.update_layout(dragmode=False, showlegend=False, margin=dict(t=30, b=10, l=10, r=10))
-        fig_sub.update_xaxes(fixedrange=True)
-        fig_sub.update_yaxes(fixedrange=True)
-        fig_sub.update_traces(textposition='inside', textinfo='percent+label')
-        st.plotly_chart(fig_sub, use_container_width=True, key="global_subject_chart")
-
-    with c2:
-        fig_pattern = px.bar(df['q_pattern'].value_counts().reset_index(), 
-                             x='count', y='q_pattern', 
-                             orientation='h', 
-                             title="Question Structures", 
-                             color='q_pattern')
-        fig_pattern.update_layout(plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', showlegend=False, dragmode=False)
-        fig_pattern.update_xaxes(showgrid=False, fixedrange=True, visible=False)
-        fig_pattern.update_yaxes(fixedrange=True, categoryorder='total ascending')
-        st.plotly_chart(fig_pattern, use_container_width=True, key="global_pattern_chart")
-    st.markdown("---")
-
-# ==========================================
 # --- MAIN CONTENT RENDER (TEST ARENA) ---
 # ==========================================
 if filtered_df.empty:
     st.info("👆 Select subjects and difficulty levels in the configuration menu above to generate your custom practice set of PYQ.")
 else:
-    # --- FILTERED METRICS & CHARTS (HIDDEN IN FULL EXAM) ---
-    if not full_paper:
-        col1, col2 = st.columns(2)
-        col1.metric("Total Questions", len(filtered_df))
-        exam_label = f"{filtered_df['exam'].iloc[0]} {filtered_df['year'].iloc[0]}" if 'exam' in filtered_df.columns and 'year' in filtered_df.columns else "N/A"
-        col2.metric("Target Exam", exam_label)
-        st.markdown("---")
-        
-        c1, c2 = st.columns(2)
-        with c1:
-            fig_sub = px.pie(filtered_df, names='subject', hole=0.5, title="Subject Weightage")
-            fig_sub.update_layout(dragmode=False, showlegend=False, margin=dict(t=30, b=10, l=10, r=10))
-            fig_sub.update_xaxes(fixedrange=True)
-            fig_sub.update_yaxes(fixedrange=True)
-            fig_sub.update_traces(textposition='inside', textinfo='percent+label')
-            st.plotly_chart(fig_sub, use_container_width=True, key="filtered_subject_chart")
-
-        with c2:
-            fig_pattern = px.bar(filtered_df['q_pattern'].value_counts().reset_index(), 
-                                 x='count', y='q_pattern', 
-                                 orientation='h', 
-                                 title="Question Structures", 
-                                 color='q_pattern')
-            fig_pattern.update_layout(plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', showlegend=False, dragmode=False)
-            fig_pattern.update_xaxes(showgrid=False, fixedrange=True, visible=False)
-            fig_pattern.update_yaxes(fixedrange=True, categoryorder='total ascending')
-            st.plotly_chart(fig_pattern, use_container_width=True, key="filtered_pattern_chart")
-
     st.markdown("## 🎯 Test Arena")
 
     # ==========================================
@@ -319,13 +302,11 @@ else:
                 elapsed_time = int(time.time() - st.session_state['start_time'])
                 remaining_time = max(0, st.session_state['time_limit_seconds'] - elapsed_time)
                 
-                # Server-side auto-submit fallback
                 if remaining_time <= 0:
                     st.session_state['exam_submitted'] = True
                     st.session_state['auto_submitted'] = True
                     st.rerun()
                 
-                # Inject JS timer via components.html into the parent document DOM
                 timer_js = f"""
                 <script>
                     var parentDoc = window.parent.document;
@@ -380,7 +361,6 @@ else:
                 """
                 components.html(timer_js, height=0, width=0)
             else:
-                # Remove timer if submitted
                 cleanup_js = """
                 <script>
                     var parentDoc = window.parent.document;
@@ -402,31 +382,36 @@ else:
         st.markdown("---")
 
         # ==========================================
-        # --- COLLAPSIBLE QUESTION NAVIGATOR ---
+        # --- HTML/CSS QUESTION NAVIGATOR GRID ---
         # ==========================================
         if full_paper and not st.session_state['exam_submitted']:
             with st.expander("📊 Question Navigator Grid", expanded=False):
-                cols = st.columns(10)
+                grid_html = '<div style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; text-align: center;">'
+                
                 for i, row in filtered_df.reset_index().iterrows():
                     qid = str(row['question_id'])
                     q_num = i + 1 
                     
                     if qid in st.session_state['marked_for_review']:
-                        emoji = "🟧" # Marked
+                        bg_color = "#EF4444"
+                        text_color = "white"
                     elif qid in st.session_state['user_answers']:
-                        emoji = "🟩" # Attempted
+                        bg_color = "#22C55E"
+                        text_color = "white"
                     else:
-                        emoji = "⬜" # Blank
+                        bg_color = "#E2E8F0"
+                        text_color = "#334155"
+                        
+                    cell_html = f'<div style="background-color: {bg_color}; color: {text_color}; padding: 10px; border-radius: 6px; font-weight: bold;">{q_num}</div>'
+                    grid_html += cell_html
                     
-                    if cols[i % 10].button(f"{emoji} {q_num}", key=f"nav_grid_{qid}"):
-                        st.session_state['current_page'] = i // 5
-                        st.rerun()
+                grid_html += '</div>'
+                st.markdown(grid_html, unsafe_allow_html=True)
 
         # ==========================================
         # --- QUESTION RENDERING & PAGINATION ---
         # ==========================================
         if is_exam_mode and st.session_state['exam_submitted']:
-            # Post Submission Review (No pagination needed for review to easily scroll)
             st.markdown("### 📝 Post-Submission Review")
             st.write("Click on any question to expand explanations and log your errors.")
             
@@ -478,11 +463,9 @@ else:
                     st.caption(f"**Source:** {row.get('source', 'N/A')}")
 
         else:
-            # Live Test (Paginated)
             questions_per_page = 5 if full_paper else len(filtered_df)
             total_pages = (len(filtered_df) - 1) // questions_per_page + 1
             
-            # Ensure current_page is within bounds
             if st.session_state['current_page'] >= total_pages:
                 st.session_state['current_page'] = max(0, total_pages - 1)
                 
@@ -519,7 +502,6 @@ else:
                 if selected_choice:
                     st.session_state['user_answers'][qid] = selected_choice[0]
                 
-                # Mark for Review Checkbox
                 if full_paper:
                     is_marked = qid in st.session_state['marked_for_review']
                     mark_review = st.checkbox("📌 Mark for Review", value=is_marked, key=f"review_{qid}")
@@ -554,7 +536,6 @@ else:
 
                 st.divider()
             
-            # --- PAGINATION CONTROLS ---
             if full_paper:
                 col_prev, col_spacer, col_next = st.columns([1, 2, 1])
                 with col_prev:
