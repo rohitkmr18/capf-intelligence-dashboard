@@ -11,56 +11,72 @@ import streamlit.components.v1 as components
 # ==========================================
 st.set_page_config(page_title="Defence Pathshala | PYQ Engine", layout="centered", initial_sidebar_state="collapsed")
 
-st.markdown("""
+import base64
+
+# Function to encode the local image
+def get_base64_of_bin_file(bin_file):
+    with open(bin_file, 'rb') as f:
+        data = f.read()
+    return base64.b64encode(data).decode()
+
+# Read the camo frame image
+try:
+    camo_img_base64 = get_base64_of_bin_file('images.jpg')
+    background_css = f'url("data:image/jpeg;base64,{camo_img_base64}")'
+except FileNotFoundError:
+    # Fallback to a solid color if the image is missing
+    background_css = '#4B5320'
+
+# Inject the CSS
+st.markdown(f"""
 <style>
 /* Base Typography & Negative Space */
-html, body, [class*="css"] {
+html, body, [class*="css"] {{
     font-family: 'Inter', 'Segoe UI', sans-serif;
-}
-.block-container {
+}}
+.block-container {{
     padding-top: 2rem !important;
     padding-bottom: 2rem !important;
-}
+}}
 
-/* Banner Design - Tactical Military Theme */
-.hero-banner {
-    /* Army Green base with a seamless camouflage texture and dark overlay */
-    background-color: #4B5320; 
-    background-image: 
-        linear-gradient(rgba(15, 23, 42, 0.4), rgba(15, 23, 42, 0.7)),
-        url('https://www.transparenttextures.com/patterns/camouflage-pattern.png');
-    padding: 35px 20px;
+/* Banner Design - Tactical Camo Frame */
+.hero-banner {{
+    background-image: {background_css};
+    background-size: 100% 100%; /* Stretches the frame to exactly fit the banner */
+    background-position: center;
+    background-repeat: no-repeat;
+    background-color: #F8FAFC; /* Fallback color for the center */
+    padding: 50px 20px; /* Increased padding to keep text inside the clear center of the frame */
     border-radius: 12px;
     text-align: center;
     margin-bottom: 15px;
-    border: 2px solid #2d3312; /* Darker green border */
-    box-shadow: 0 6px 15px rgba(0,0,0,0.4);
-}
+    box-shadow: 0 6px 15px rgba(0,0,0,0.5);
+}}
 
-.hero-title {
+.hero-title {{
     font-family: 'Black Ops One', 'Impact', sans-serif;
     font-weight: 400;
-    font-size: 2.6rem;
+    font-size: 2.8rem;
     margin-bottom: 5px;
     line-height: 1.2;
-    color: #F8FAFC;
+    color: #0F172A; /* Dark text to contrast with the light center of the image */
     letter-spacing: 2px;
     text-transform: uppercase;
-    text-shadow: 2px 2px 8px rgba(0, 0, 0, 0.9); /* Heavy shadow for visibility against camo */
-}
+    text-shadow: 2px 2px 4px rgba(255, 255, 255, 0.8);
+}}
 
-.hero-tagline {
+.hero-tagline {{
     font-family: 'Inter', 'Segoe UI', sans-serif;
-    font-size: 1.1rem;
-    color: #cbd5e1;
+    font-size: 1.15rem;
+    color: #1E293B; /* Dark text */
     margin-top: 5px;
-    font-weight: 600;
-    letter-spacing: 1px;
+    font-weight: 800;
+    letter-spacing: 1.5px;
     text-transform: uppercase;
-    text-shadow: 1px 1px 4px rgba(0,0,0,0.8);
-}
+}}
+
 /* Credential Badge */
-.cred-badge {
+.cred-badge {{
     background-color: #F8FAFC;
     border-left: 5px solid #F59E0B;
     padding: 14px;
@@ -71,18 +87,19 @@ html, body, [class*="css"] {
     font-weight: 700;
     color: #0F172A;
     box-shadow: 0 2px 4px rgba(0,0,0,0.02);
-}
+}}
 
 /* Dashboard Description */
-.dash-intro {
+.dash-intro {{
     text-align: center;
     font-size: 0.95rem;
     color: #475569;
     line-height: 1.6;
     margin-bottom: 30px;
     padding: 0 10px;
-}
-
+}}
+</style>
+""", unsafe_allow_html=True)
 /* Briefing Card */
 .briefing-card {
     background: #FFFFFF;
