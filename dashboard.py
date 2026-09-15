@@ -308,27 +308,42 @@ if not exam_df.empty:
 
     with c1:
         if 'subject' in exam_df.columns:
-            fig_sub = px.pie(exam_df, names='subject', hole=0.5, title="Subject Weightage")
+            fig_sub = px.pie(exam_df, names='subject', hole=0.5, title="")
             fig_sub.update_traces(textposition='inside', textinfo='label+value', hovertemplate="%{label}: %{value} Questions<extra></extra>")
-            fig_sub.update_layout(dragmode=False, showlegend=False, margin=dict(t=30, b=10, l=10, r=10))
+            fig_sub.update_layout(
+                dragmode=False, 
+                showlegend=False, 
+                margin=dict(t=20, b=20, l=10, r=10),
+                annotations=[dict(text="Subject<br>Weightage", x=0.5, y=0.5, font_size=12, showarrow=False, font_weight="bold")]
+            )
             fig_sub.update_xaxes(fixedrange=True)
             fig_sub.update_yaxes(fixedrange=True)
             st.plotly_chart(fig_sub, use_container_width=True, config=chart_config, key="global_subject_chart")
 
     with c2:
         if 'q_pattern' in exam_df.columns:
-            fig_pattern = px.pie(exam_df, names='q_pattern', hole=0.5, title="Question Structures")
+            fig_pattern = px.pie(exam_df, names='q_pattern', hole=0.5, title="")
             fig_pattern.update_traces(textposition='inside', textinfo='label+value', hovertemplate="%{label}: %{value} Questions<extra></extra>")
-            fig_pattern.update_layout(dragmode=False, showlegend=False, margin=dict(t=30, b=10, l=10, r=10))
+            fig_pattern.update_layout(
+                dragmode=False, 
+                showlegend=False, 
+                margin=dict(t=20, b=20, l=10, r=10),
+                annotations=[dict(text="Question<br>Structures", x=0.5, y=0.5, font_size=12, showarrow=False, font_weight="bold")]
+            )
             fig_pattern.update_xaxes(fixedrange=True)
             fig_pattern.update_yaxes(fixedrange=True)
             st.plotly_chart(fig_pattern, use_container_width=True, config=chart_config, key="global_pattern_chart")
 
     with c3:
         if 'difficulty' in exam_df.columns:
-            fig_diff = px.pie(exam_df, names='difficulty', hole=0.5, title="Difficulty Level")
+            fig_diff = px.pie(exam_df, names='difficulty', hole=0.5, title="")
             fig_diff.update_traces(textposition='inside', textinfo='label+value', hovertemplate="%{label}: %{value} Questions<extra></extra>")
-            fig_diff.update_layout(dragmode=False, showlegend=False, margin=dict(t=30, b=10, l=10, r=10))
+            fig_diff.update_layout(
+                dragmode=False, 
+                showlegend=False, 
+                margin=dict(t=20, b=20, l=10, r=10),
+                annotations=[dict(text="Difficulty<br>Level", x=0.5, y=0.5, font_size=12, showarrow=False, font_weight="bold")]
+            )
             fig_diff.update_xaxes(fixedrange=True)
             fig_diff.update_yaxes(fixedrange=True)
             st.plotly_chart(fig_diff, use_container_width=True, config=chart_config, key="global_difficulty_chart")
@@ -336,7 +351,6 @@ else:
     st.warning("⚠️ No data available in `exam_df` to render overview charts.")
 
 st.markdown("---")
-
 # ==========================================
 # --- CENTRALIZED FILTERS & EXAM TOGGLE ---
 # ==========================================
