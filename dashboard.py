@@ -334,9 +334,9 @@ with st.expander("⚙️ Configure Mocks", expanded=True):
     else:
         # Force filtered_df to load all rows of exam_df, bypassing blank multiselects
         filtered_df = exam_df
-        st.warning(f"⏱️ **Timed Mock Activated for {selected_exam} ({len(filtered_df)} Questions Loaded).** The interface is locked to Full Mock Exam mode.")
         is_exam_mode = True
-
+# PERSIST filtered_df in session state so it survives st.rerun() when starting the test
+st.session_state['active_filtered_df'] = filtered_df
 # ==========================================
 # --- MAIN CONTENT RENDER (TEST ARENA) ---
 # ==========================================
@@ -376,7 +376,10 @@ else:
             st.session_state['exam_started'] = True
             st.session_state['start_time'] = time.time()
             st.rerun()
-    else:
+        else:
+        # Replace occurrences of filtered_df with active_df in the rest of your rendering loop if needed, 
+        # or update the reference below:
+        filtered_df = active_df
         # ==========================================
         # --- JS FLOATING TIMER INJECTION ---
         # ==========================================
