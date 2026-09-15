@@ -305,7 +305,7 @@ else:
 # ==========================================
 # --- IMMERSIVE MODE (HIDE UI) LOGIC ---
 # ==========================================
-# FIX: Rely only on exam_started. Do not rely on the checkbox widget key, 
+# Rely only on exam_started. Do not rely on the checkbox widget key, 
 # because Streamlit deletes widget keys from memory when they are hidden!
 is_active_full_mock = st.session_state.get('exam_started', False)
 
@@ -397,9 +397,6 @@ else:
     filtered_df = exam_df
     is_exam_mode = True
 
-# ==========================================
-# --- MAIN CONTENT RENDER (TEST ARENA) ---
-# ==========================================
 # ==========================================
 # --- MAIN CONTENT RENDER (TEST ARENA) ---
 # ==========================================
@@ -665,16 +662,9 @@ else:
                 # The jump script executes JS directly on click
                 jump_script = f"window.parent.document.getElementById('q-{q_num}').scrollIntoView({{behavior: 'smooth', block: 'start'}});"
                 
-                grid_html += f'''
-                    <div onclick="{jump_script}" 
-                         style="width:40px; height:40px; background-color:{bg_color}; 
-                                display:flex; align-items:center; justify-content:center; 
-                                border-radius:4px; color:white; font-weight:bold; 
-                                cursor:pointer; font-size:14px; box-shadow: 0 2px 4px rgba(0,0,0,0.15);
-                                transition: transform 0.1s ease;">
-                        {q_num}
-                    </div>
-                '''
+                # Single-line HTML to avoid Markdown parsing it as a code block
+                grid_html += f'<div onclick="{jump_script}" style="width:40px; height:40px; background-color:{bg_color}; display:flex; align-items:center; justify-content:center; border-radius:4px; color:white; font-weight:bold; cursor:pointer; font-size:14px; box-shadow: 0 2px 4px rgba(0,0,0,0.15); transition: transform 0.1s ease;">{q_num}</div>'
+                
             grid_html += '</div>'
             
             st.markdown(grid_html, unsafe_allow_html=True)
