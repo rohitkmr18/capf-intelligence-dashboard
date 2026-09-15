@@ -249,12 +249,22 @@ st.markdown('<div class="dash-intro">Transform raw PYQs into a tactical, data-dr
 # ==========================================
 # --- EXAM, YEAR, & CYCLE SELECTION ---
 # ==========================================
+
+# Clean dataframe columns to prevent hidden space bugs
 if 'exam' in df.columns:
     df['exam'] = df['exam'].astype(str).str.strip()
 if 'year' in df.columns:
     df['year'] = df['year'].astype(str).str.strip()
 if 'cycle' in df.columns:
     df['cycle'] = df['cycle'].astype(str).str.strip()
+
+# Initialize permanent session state locks for parameters if not present
+if 'locked_exam' not in st.session_state:
+    st.session_state['locked_exam'] = "CAPF-AC"
+if 'locked_year' not in st.session_state:
+    st.session_state['locked_year'] = "2025"
+if 'locked_cycle' not in st.session_state:
+    st.session_state['locked_cycle'] = "I"
 
 is_full_paper_active = st.session_state.get('is_full_paper', False)
 
@@ -264,22 +274,52 @@ if not is_full_paper_active:
     
     with col1:
         exam_options = list(df['exam'].dropna().unique()) if 'exam' in df.columns else ["CAPF-AC", "CDS"]
-        selected_exam = st.selectbox("Target Exam:", options=exam_options, key="exam_selection", on_change=reset_test_state)
+        # Default index lookup safely
+        default_exam_idx = exam_options.index(st.session_state['locked_exam']) if st.session_state['locked_exam'] in exam_options else 0
+        
+        selected_exam = st.selectbox(
+            "Target Exam:", 
+            options=exam_options, 
+            index=default_exam_idx,
+            key="exam_selection", 
+            on_change=reset_test_state
+        )
+        st.session_state['locked_exam'] = selected_exam
 
     with col2:
         available_years = list(df[df['exam'] == selected_exam]['year'].dropna().unique()) if 'exam' in df.columns and 'year' in df.columns else ["2025", "2026"]
-        selected_year = st.selectbox("Exam Year:", options=available_years, key="year_selection", on_change=reset_test_state)
+        default_year_idx = available_years.index(st.session_state['locked_year']) if st.session_state['locked_year'] in available_years else 0
+        
+        selected_year = st.selectbox(
+            "Exam Year:", 
+            options=available_years, 
+            index=default_year_idx,
+            key="year_selection", 
+            on_change=reset_test_state
+        )
+        st.session_state['locked_year'] = selected_year
 
     selected_cycle = None
     with col3:
         if selected_exam == "CDS":
-            selected_cycle = st.selectbox("Exam Cycle:", options=["I", "II"], key="cycle_selection", on_change=reset_test_state)
+            cycle_options = ["I", "II"]
+            default_cycle_idx = cycle_options.index(st.session_state['locked_cycle']) if st.session_state['locked_cycle'] in cycle_options else 0
+            
+            selected_cycle = st.selectbox(
+                "Exam Cycle:", 
+                options=cycle_options, 
+                index=default_cycle_idx,
+                key="cycle_selection", 
+                on_change=reset_test_state
+            )
+            st.session_state['locked_cycle'] = selected_cycle
 else:
-    selected_exam = st.session_state.get('exam_selection', "CAPF-AC")
-    selected_year = st.session_state.get('year_selection', "2025")
-    selected_cycle = st.session_state.get('cycle_selection', None)
+    # Retrieve locked choices safely from session memory so they never revert to CAPF
+    selected_exam = st.session_state.get('locked_exam', "CAPF-AC")
+    selected_year = st.session_state.get('locked_year', "2025")
+    selected_cycle = st.session_state.get('locked_cycle', "I")
 
-# Unified Datasets Filtering
+# --- UNIFIED DATAFRAME FILTERING ---
 if 'exam' in df.columns and 'year' in df.columns:
     exam_df = df[(df['exam'] == str(selected_exam).strip()) & (df['year'] == str(selected_year).strip())]
     
@@ -292,7 +332,6 @@ else:
     exam_df = df
 
 st.markdown("---")
-
 # ==========================================
 # --- GLOBAL DATABASE OVERVIEW ---
 # ==========================================
