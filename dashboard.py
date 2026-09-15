@@ -205,11 +205,11 @@ if not st.session_state['is_full_paper']:
 
     # 2. Year/Cycle Dropdown (Dynamically filtered based on Exam)
     if 'exam' in df.columns and 'year' in df.columns:
-        # Filter the years available for the chosen exam
+        # Filter the years available for the chosen exam from the dataset
         available_years = list(df[df['exam'] == selected_exam]['year'].dropna().unique())
     else:
         # Fallback if columns are missing
-        available_years = ["2025"] if selected_exam == "CAPF-AC" else ["II 2026"]
+        available_years = ["2025"] if selected_exam == "CAPF-AC" else ["September 2026"]
 
     selected_year = st.selectbox(
         "Exam Year/Cycle:",
