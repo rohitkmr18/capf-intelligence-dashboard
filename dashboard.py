@@ -185,43 +185,60 @@ st.markdown('<div class="cred-badge">Engineered by an IIT Kanpur graduate, UPSC 
 st.markdown('<div class="dash-intro">Transform raw PYQs into a tactical, data-driven preparation engine. Stop passive reading and start actively eliminating. This intelligence dashboard analyzes your performance patterns, isolates specific examiner traps, and dynamically builds a personalized syllabus roadmap to maximize your final score.</div>', unsafe_allow_html=True)
 
 # ==========================================
-# --- EXAM SELECTION (NEW COMPONENT) ---
+# --- EXAM & CYCLE SELECTION (NEW COMPONENT) ---
 # ==========================================
-# Determine available exams dynamically if column exists, else fallback
-if 'exam' in df.columns:
-    exam_options = list(df['exam'].dropna().unique())
-else:
-    exam_options = ["CDS II 2026", "CAPF-AC 2025"]
-
 if not st.session_state['is_full_paper']:
-    st.markdown("### 🎯 Select Examination")
+    st.markdown("### 🎯 Select Examination & Cycle")
+    
+    # 1. Target Exam Dropdown
+    if 'exam' in df.columns:
+        exam_options = list(df['exam'].dropna().unique())
+    else:
+        exam_options = ["CAPF-AC", "CDS"] # Fallback
+
     selected_exam = st.selectbox(
-        "Choose your target exam dataset:",
+        "Target Exam:",
         options=exam_options,
         key="exam_selection",
         on_change=reset_test_state
     )
-else:
-    # Retain selected exam state if the full paper mode hides the selector
-    selected_exam = st.session_state.get('exam_selection', exam_options[0])
 
-# Isolate the master dataframe to the selected exam
-if 'exam' in df.columns:
-    exam_df = df[df['exam'] == selected_exam]
+    # 2. Year/Cycle Dropdown (Dynamically filtered based on Exam)
+    if 'exam' in df.columns and 'year' in df.columns:
+        # Filter the years available for the chosen exam
+        available_years = list(df[df['exam'] == selected_exam]['year'].dropna().unique())
+    else:
+        # Fallback if columns are missing
+        available_years = ["2025"] if selected_exam == "CAPF-AC" else ["II 2026"]
+
+    selected_year = st.selectbox(
+        "Exam Year/Cycle:",
+        options=available_years,
+        key="year_selection",
+        on_change=reset_test_state
+    )
+
+else:
+    # Retain selected state when full paper mode hides the selectors
+    selected_exam = st.session_state.get('exam_selection', "CAPF-AC")
+    selected_year = st.session_state.get('year_selection', "2025")
+
+# Filter the master dataframe to match BOTH the selected exam and year
+if 'exam' in df.columns and 'year' in df.columns:
+    exam_df = df[(df['exam'] == selected_exam) & (df['year'] == selected_year)]
 else:
     exam_df = df
 
 st.markdown("---")
-
 # ==========================================
 # --- GLOBAL DATABASE OVERVIEW ---
 # ==========================================
 if not st.session_state['is_full_paper']:
-    st.markdown(f"### 📊 Database Overview: {selected_exam}")
+    st.markdown(f"### 📊 Database Overview: {selected_exam} {selected_year}")
     col1, col2 = st.columns(2)
     # Using exam_df to reflect only the selected exam's metrics
     col1.metric("Total Questions", len(exam_df))
-    col2.metric("Active Dataset", selected_exam)
+    col2.metric("Active Dataset", f"{selected_exam} {selected_year}")
 
     c1, c2, c3 = st.columns(3)
     chart_config = {'displayModeBar': False}
