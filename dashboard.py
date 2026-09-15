@@ -362,10 +362,17 @@ if not st.session_state['is_full_paper']:
 # --- CENTRALIZED FILTERS & EXAM TOGGLE ---
 # ==========================================
 with st.expander("⚙️ Configure Mocks", expanded=True):
-    full_paper = st.checkbox("⏱️ Attempt Full Paper (125 Questions - 2 Hours)", key="is_full_paper", on_change=reset_test_state)
+    # Dynamically set full paper specs based on the selected exam
+    if selected_exam == "CDS":
+        full_paper_label = "⏱️ Attempt Full Paper (120 Questions - 2 Hours)"
+        cds_time_seconds = 7200 # 2 hours
+    else:
+        full_paper_label = "⏱️ Attempt Full Paper (125 Questions - 2 Hours)"
+        cds_time_seconds = 7200
+
+    full_paper = st.checkbox(full_paper_label, key="is_full_paper", on_change=reset_test_state)
     
     if not full_paper:
-        # Populate multiselect options directly from the exam_df
         selected_subject = st.multiselect(
             "Select Subject", 
             exam_df['subject'].unique() if 'subject' in exam_df.columns else [], 
@@ -379,7 +386,6 @@ with st.expander("⚙️ Configure Mocks", expanded=True):
             on_change=reset_test_state
         )
         
-        # Apply filters to exam_df safely
         if 'subject' in exam_df.columns and 'difficulty' in exam_df.columns:
             filtered_df = exam_df[(exam_df['subject'].isin(selected_subject)) & (exam_df['difficulty'].isin(selected_difficulty))]
         else:
@@ -393,10 +399,9 @@ with st.expander("⚙️ Configure Mocks", expanded=True):
         )
         is_exam_mode = "Full Mock Exam" in mode
     else:
-        filtered_df = exam_df # Locks to the selected exam's full paper
-        st.warning("⏱️ **Timed Mock Activated (2 Hours).** The interface is locked to Full Mock Exam mode.")
+        filtered_df = exam_df
+        st.warning(f"⏱️ **Timed Mock Activated for {selected_exam}.** The interface is locked to Full Mock Exam mode.")
         is_exam_mode = True
-
 # ==========================================
 # --- MAIN CONTENT RENDER (TEST ARENA) ---
 # ==========================================
@@ -409,11 +414,19 @@ else:
     # --- GATEKEEPER / PRE-EXAM BRIEFING ---
     # ==========================================
     if full_paper and not st.session_state['exam_started']:
-        st.markdown("""
+        # Set dynamic marking and question info based on exam
+        if selected_exam == "CDS":
+            pattern_info = "120 Questions | 100 Marks (typically) | 2 Hours (120 Minutes)."
+            marking_info = "<strong>+0.83</strong> (or standard 1/3rd scaling) for correct answers, and <strong>-0.27</strong> negative marking penalty."
+        else:
+            pattern_info = "125 Questions | 250 Total Marks | 2 Hours (120 Minutes)."
+            marking_info = "<strong>+2.0</strong> for correct answers, <strong>-0.67</strong> negative marking penalty for incorrect attempts, and <strong>0</strong> for unattempted questions."
+
+        st.markdown(f"""
         <div class="briefing-card">
-            <div class="briefing-header">📋 Examination Guidelines & Protocol</div>
-            <div class="briefing-item">• <strong>Exam Pattern:</strong> 125 Questions | 250 Total Marks | 2 Hours (120 Minutes).</div>
-            <div class="briefing-item">• <strong>Marking Scheme:</strong> <strong>+2.0</strong> for correct answers, <strong>-0.67</strong> negative marking penalty for incorrect attempts, and <strong>0</strong> for unattempted questions.</div>
+            <div class="briefing-header">📋 {selected_exam} Examination Guidelines & Protocol</div>
+            <div class="briefing-item">• <strong>Exam Pattern:</strong> {pattern_info}</div>
+            <div class="briefing-item">• <strong>Marking Scheme:</strong> {marking_info}</div>
             <div class="briefing-item">• <strong>Attempt Strategy:</strong> Execute a structured 3-Round elimination cycle:
                 <br>&emsp;↳ <em>Round 1:</em> Secure 100% direct-hit questions.
                 <br>&emsp;↳ <em>Round 2:</em> Solve 50-50 elimination questions.
@@ -427,7 +440,6 @@ else:
             st.session_state['exam_started'] = True
             st.session_state['start_time'] = time.time()
             st.rerun()
-
     else:
         # ==========================================
         # --- JS FLOATING TIMER INJECTION ---
