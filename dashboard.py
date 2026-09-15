@@ -27,8 +27,8 @@ except FileNotFoundError:
     # Fallback to a solid color if the image is missing
     background_css = '#4B5320'
 
-# Inject the CSS safely using string concatenation to avoid f-string brace errors
-st.markdown("""
+# Define the CSS as a completely normal string (NO 'f' in front of the quotes!)
+css_template = """
 <style>
 /* Base Typography & Negative Space */
 html, body, [class*="css"] {
@@ -38,10 +38,10 @@ html, body, [class*="css"] {
     padding-top: 2rem !important;
     padding-bottom: 2rem !important;
 }
-""" + f"""
+
 /* Banner Design - Tactical Camo Frame */
-.hero-banner {{
-    background-image: {background_css};
+.hero-banner {
+    background-image: REPLACE_ME_BACKGROUND;
     background-size: 100% 100%; 
     background-position: center;
     background-repeat: no-repeat;
@@ -51,8 +51,8 @@ html, body, [class*="css"] {
     text-align: center;
     margin-bottom: 15px;
     box-shadow: 0 6px 15px rgba(0,0,0,0.5);
-}}
-""" + """
+}
+
 .hero-title {
     font-family: 'Black Ops One', 'Impact', sans-serif;
     font-weight: 400;
@@ -64,6 +64,7 @@ html, body, [class*="css"] {
     text-transform: uppercase;
     text-shadow: 2px 2px 4px rgba(255, 255, 255, 0.8);
 }
+
 .hero-tagline {
     font-family: 'Inter', 'Segoe UI', sans-serif;
     font-size: 1.15rem;
@@ -144,8 +145,13 @@ div.stRadio > div[role="radiogroup"] > label:hover {
     color: #1E3A8A;
 }
 </style>
-""", unsafe_allow_html=True)
-/* Briefing Card */
+"""
+
+# Safely swap the placeholder for the actual image variable
+final_css = css_template.replace("REPLACE_ME_BACKGROUND", background_css)
+
+# Inject the final CSS into Streamlit
+st.markdown(final_css, unsafe_allow_html=True)/* Briefing Card */
 .briefing-card {
     background: #FFFFFF;
     border: 1px solid #E2E8F0;
