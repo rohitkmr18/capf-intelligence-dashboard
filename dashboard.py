@@ -140,11 +140,10 @@ def clean_text(text):
 
 @st.cache_data(ttl="10m") 
 def load_data():
-    # Modified to read from the updated CSV dataset verbatim
-    return pd.read_csv('PYQ_Intelligence.csv')
+    # Read the exact Excel filename verbatim
+    return pd.read_excel('PYQ Intelligence.xlsx')
 
 df = load_data()
-
 # ==========================================
 # --- SESSION STATE INITIALIZATION ---
 # ==========================================
