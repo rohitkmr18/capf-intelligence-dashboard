@@ -140,7 +140,8 @@ def clean_text(text):
 
 @st.cache_data(ttl="10m") 
 def load_data():
-    return pd.read_excel('PYQ Intelligence.xlsx', sheet_name='CAPF')
+    # Modified to read from the updated CSV dataset verbatim
+    return pd.read_csv('PYQ_Intelligence.csv')
 
 df = load_data()
 
@@ -185,42 +186,68 @@ st.markdown('<div class="cred-badge">Engineered by an IIT Kanpur graduate, UPSC 
 st.markdown('<div class="dash-intro">Transform raw PYQs into a tactical, data-driven preparation engine. Stop passive reading and start actively eliminating. This intelligence dashboard analyzes your performance patterns, isolates specific examiner traps, and dynamically builds a personalized syllabus roadmap to maximize your final score.</div>', unsafe_allow_html=True)
 
 # ==========================================
+# --- EXAM SELECTION (NEW COMPONENT) ---
+# ==========================================
+# Determine available exams dynamically if column exists, else fallback
+if 'exam' in df.columns:
+    exam_options = list(df['exam'].dropna().unique())
+else:
+    exam_options = ["CDS II 2026", "CAPF-AC 2025"]
+
+if not st.session_state['is_full_paper']:
+    st.markdown("### 🎯 Select Examination")
+    selected_exam = st.selectbox(
+        "Choose your target exam dataset:",
+        options=exam_options,
+        key="exam_selection",
+        on_change=reset_test_state
+    )
+else:
+    # Retain selected exam state if the full paper mode hides the selector
+    selected_exam = st.session_state.get('exam_selection', exam_options[0])
+
+# Isolate the master dataframe to the selected exam
+if 'exam' in df.columns:
+    exam_df = df[df['exam'] == selected_exam]
+else:
+    exam_df = df
+
+st.markdown("---")
+
+# ==========================================
 # --- GLOBAL DATABASE OVERVIEW ---
 # ==========================================
 if not st.session_state['is_full_paper']:
-    st.markdown("### 📊 Database Overview")
+    st.markdown(f"### 📊 Database Overview: {selected_exam}")
     col1, col2 = st.columns(2)
-    col1.metric("Total Questions", len(df))
-
-    if 'exam' in df.columns and 'year' in df.columns:
-        unique_exams = df[['exam', 'year']].drop_duplicates()
-        exam_label = ", ".join([f"{row['exam']} {row['year']}" for _, row in unique_exams.iterrows()])
-    else:
-        exam_label = "UPSC CAPF-AC"
-    col2.metric("Available Exams", exam_label)
+    # Using exam_df to reflect only the selected exam's metrics
+    col1.metric("Total Questions", len(exam_df))
+    col2.metric("Active Dataset", selected_exam)
 
     c1, c2, c3 = st.columns(3)
     chart_config = {'displayModeBar': False}
 
     with c1:
-        fig_sub = px.pie(df, names='subject', hole=0.5, title="Subject Weightage")
-        fig_sub.update_traces(textposition='inside', textinfo='label+value', hovertemplate="%{label}: %{value} Questions<extra></extra>")
-        fig_sub.update_layout(dragmode=False, showlegend=False, margin=dict(t=30, b=10, l=10, r=10))
-        fig_sub.update_xaxes(fixedrange=True)
-        fig_sub.update_yaxes(fixedrange=True)
-        st.plotly_chart(fig_sub, use_container_width=True, config=chart_config, key="global_subject_chart")
+        if 'subject' in exam_df.columns and not exam_df.empty:
+            fig_sub = px.pie(exam_df, names='subject', hole=0.5, title="Subject Weightage")
+            fig_sub.update_traces(textposition='inside', textinfo='label+value', hovertemplate="%{label}: %{value} Questions<extra></extra>")
+            fig_sub.update_layout(dragmode=False, showlegend=False, margin=dict(t=30, b=10, l=10, r=10))
+            fig_sub.update_xaxes(fixedrange=True)
+            fig_sub.update_yaxes(fixedrange=True)
+            st.plotly_chart(fig_sub, use_container_width=True, config=chart_config, key="global_subject_chart")
 
     with c2:
-        fig_pattern = px.pie(df, names='q_pattern', hole=0.5, title="Question Structures")
-        fig_pattern.update_traces(textposition='inside', textinfo='label+value', hovertemplate="%{label}: %{value} Questions<extra></extra>")
-        fig_pattern.update_layout(dragmode=False, showlegend=False, margin=dict(t=30, b=10, l=10, r=10))
-        fig_pattern.update_xaxes(fixedrange=True)
-        fig_pattern.update_yaxes(fixedrange=True)
-        st.plotly_chart(fig_pattern, use_container_width=True, config=chart_config, key="global_pattern_chart")
+        if 'q_pattern' in exam_df.columns and not exam_df.empty:
+            fig_pattern = px.pie(exam_df, names='q_pattern', hole=0.5, title="Question Structures")
+            fig_pattern.update_traces(textposition='inside', textinfo='label+value', hovertemplate="%{label}: %{value} Questions<extra></extra>")
+            fig_pattern.update_layout(dragmode=False, showlegend=False, margin=dict(t=30, b=10, l=10, r=10))
+            fig_pattern.update_xaxes(fixedrange=True)
+            fig_pattern.update_yaxes(fixedrange=True)
+            st.plotly_chart(fig_pattern, use_container_width=True, config=chart_config, key="global_pattern_chart")
 
     with c3:
-        if 'difficulty' in df.columns:
-            fig_diff = px.pie(df, names='difficulty', hole=0.5, title="Difficulty Level")
+        if 'difficulty' in exam_df.columns and not exam_df.empty:
+            fig_diff = px.pie(exam_df, names='difficulty', hole=0.5, title="Difficulty Level")
             fig_diff.update_traces(textposition='inside', textinfo='label+value', hovertemplate="%{label}: %{value} Questions<extra></extra>")
             fig_diff.update_layout(dragmode=False, showlegend=False, margin=dict(t=30, b=10, l=10, r=10))
             fig_diff.update_xaxes(fixedrange=True)
@@ -236,19 +263,25 @@ with st.expander("⚙️ Configure Mocks", expanded=True):
     full_paper = st.checkbox("⏱️ Attempt Full Paper (125 Questions - 2 Hours)", key="is_full_paper", on_change=reset_test_state)
     
     if not full_paper:
+        # Populate multiselect options directly from the exam_df
         selected_subject = st.multiselect(
             "Select Subject", 
-            df['subject'].unique(), 
+            exam_df['subject'].unique() if 'subject' in exam_df.columns else [], 
             default=[], 
             on_change=reset_test_state
         )
         selected_difficulty = st.multiselect(
             "Select Difficulty", 
-            df['difficulty'].unique() if 'difficulty' in df.columns else [], 
+            exam_df['difficulty'].unique() if 'difficulty' in exam_df.columns else [], 
             default=[], 
             on_change=reset_test_state
         )
-        filtered_df = df[(df['subject'].isin(selected_subject)) & (df['difficulty'].isin(selected_difficulty))]
+        
+        # Apply filters to exam_df safely
+        if 'subject' in exam_df.columns and 'difficulty' in exam_df.columns:
+            filtered_df = exam_df[(exam_df['subject'].isin(selected_subject)) & (exam_df['difficulty'].isin(selected_difficulty))]
+        else:
+            filtered_df = exam_df
         
         st.markdown("---")
         mode = st.radio(
@@ -258,7 +291,7 @@ with st.expander("⚙️ Configure Mocks", expanded=True):
         )
         is_exam_mode = "Full Mock Exam" in mode
     else:
-        filtered_df = df
+        filtered_df = exam_df # Locks to the selected exam's full paper
         st.warning("⏱️ **Timed Mock Activated (2 Hours).** The interface is locked to Full Mock Exam mode.")
         is_exam_mode = True
 
@@ -583,7 +616,7 @@ else:
                 records.append({
                     'Q_Num': row['q_num'],
                     'Subject': row['subject'],
-                    'Topic': row['topic'],
+                    'Topic': row['topic'] if 'topic' in row else "N/A",
                     'User_Choice': user_pick,
                     'Correct_Choice': correct_opt,
                     'Status': status,
