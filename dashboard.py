@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 import time
+import streamlit.components.v1 as components
 
 # ==========================================
 # --- PAGE CONFIG & CSS INJECTION ---
@@ -94,33 +95,6 @@ html, body, [class*="css"] {
     font-size: 0.96rem;
 }
 
-/* Timer Sticky / Top Banner */
-.timer-container {
-    padding: 14px 20px;
-    border-radius: 10px;
-    text-align: center;
-    font-family: 'Inter', monospace, sans-serif;
-    font-size: 1.25rem;
-    font-weight: 800;
-    margin-bottom: 20px;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    gap: 12px;
-    letter-spacing: 1px;
-}
-.timer-normal {
-    background-color: #F0FDF4;
-    color: #166534;
-    border: 2px solid #86EFAC;
-}
-.timer-urgent {
-    background-color: #FEF2F2;
-    color: #991B1B;
-    border: 2px solid #FCA5A5;
-    animation: pulse 1.5s infinite;
-}
-
 /* Mobile-Optimized Radio Buttons */
 div.stRadio > div[role="radiogroup"] > label {
     padding: 14px 18px !important;
@@ -148,17 +122,18 @@ div.stRadio > div[role="radiogroup"] > label:hover {
 # --- HELPER FUNCTIONS ---
 # ==========================================
 def reset_test_state():
-    """Clears all test progress and timer status when filters are changed."""
+    """Clears all test progress, timer, and pagination states."""
     st.session_state['user_answers'] = {}
     st.session_state['checked_questions'] = set()
     st.session_state['error_tags'] = {}
+    st.session_state['marked_for_review'] = set()
     st.session_state['exam_submitted'] = False
     st.session_state['exam_started'] = False
     st.session_state['start_time'] = None
     st.session_state['auto_submitted'] = False
+    st.session_state['current_page'] = 0
 
 def clean_text(text):
-    """Replaces raw \n or escaped \\n with Markdown double-space line breaks for UPSC formats."""
     if pd.isna(text):
         return ""
     return str(text).replace('\\n', '  \n').replace('\n', '  \n')
@@ -178,6 +153,8 @@ if 'checked_questions' not in st.session_state:
     st.session_state['checked_questions'] = set()
 if 'error_tags' not in st.session_state:
     st.session_state['error_tags'] = {}
+if 'marked_for_review' not in st.session_state:
+    st.session_state['marked_for_review'] = set()
 if 'exam_submitted' not in st.session_state:
     st.session_state['exam_submitted'] = False
 if 'exam_started' not in st.session_state:
@@ -188,6 +165,8 @@ if 'time_limit_seconds' not in st.session_state:
     st.session_state['time_limit_seconds'] = 7200
 if 'auto_submitted' not in st.session_state:
     st.session_state['auto_submitted'] = False
+if 'current_page' not in st.session_state:
+    st.session_state['current_page'] = 0
 
 # ==========================================
 # --- HERO SECTION ---
@@ -202,46 +181,6 @@ st.markdown("""
 st.markdown('<div class="cred-badge">Engineered by an IIT Kanpur graduate, UPSC CAPF AC AIR 163 and 4-time CDS qualifier.</div>', unsafe_allow_html=True)
 
 st.markdown('<div class="dash-intro">Transform raw PYQs into a tactical, data-driven preparation engine. Stop passive reading and start actively eliminating. This intelligence dashboard analyzes your performance patterns, isolates specific examiner traps, and dynamically builds a personalized syllabus roadmap to maximize your final score.</div>', unsafe_allow_html=True)
-
-# ==========================================
-# --- GLOBAL DATABASE OVERVIEW ---
-# ==========================================
-st.markdown("### 📊 Database Overview")
-
-# 1. Global Metrics
-col1, col2 = st.columns(2)
-col1.metric("Total Questions", len(df))
-
-if 'exam' in df.columns and 'year' in df.columns:
-    unique_exams = df[['exam', 'year']].drop_duplicates()
-    exam_label = ", ".join([f"{row['exam']} {row['year']}" for _, row in unique_exams.iterrows()])
-else:
-    exam_label = "UPSC CAPF-AC 2025"
-col2.metric("Available Exams", exam_label)
-
-# 2. Global Charts (Mobile-Scroll Locked)
-c1, c2 = st.columns(2)
-
-with c1:
-    fig_sub = px.pie(df, names='subject', hole=0.5, title="Subject Weightage")
-    fig_sub.update_layout(dragmode=False, showlegend=False, margin=dict(t=30, b=10, l=10, r=10))
-    fig_sub.update_xaxes(fixedrange=True)
-    fig_sub.update_yaxes(fixedrange=True)
-    fig_sub.update_traces(textposition='inside', textinfo='percent+label')
-    st.plotly_chart(fig_sub, use_container_width=True, key="global_subject_chart")
-
-with c2:
-    fig_pattern = px.bar(df['q_pattern'].value_counts().reset_index(), 
-                         x='count', y='q_pattern', 
-                         orientation='h', 
-                         title="Question Structures", 
-                         color='q_pattern')
-    fig_pattern.update_layout(plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', showlegend=False, dragmode=False)
-    fig_pattern.update_xaxes(showgrid=False, fixedrange=True, visible=False)
-    fig_pattern.update_yaxes(fixedrange=True, categoryorder='total ascending')
-    st.plotly_chart(fig_pattern, use_container_width=True, key="global_pattern_chart")
-
-st.markdown("---")
 
 # ==========================================
 # --- CENTRALIZED FILTERS & EXAM TOGGLE ---
@@ -262,7 +201,6 @@ with st.expander("⚙️ Configure Mocks", expanded=True):
             default=[], 
             on_change=reset_test_state
         )
-        
         filtered_df = df[(df['subject'].isin(selected_subject)) & (df['difficulty'].isin(selected_difficulty))]
         
         st.markdown("---")
@@ -274,36 +212,35 @@ with st.expander("⚙️ Configure Mocks", expanded=True):
         is_exam_mode = "Full Mock Exam" in mode
     else:
         filtered_df = df
-        st.warning("⏱️ **Timed Mock Activated (2 Hours).** The interface is locked to Full Mock Exam mode. Submit at the end to view your scorecard and personalized report.")
+        st.warning("⏱️ **Timed Mock Activated (2 Hours).** The interface is locked to Full Mock Exam mode.")
         is_exam_mode = True
 
 # ==========================================
-# --- MAIN CONTENT RENDER (TEST ARENA) ---
+# --- GLOBAL DATABASE OVERVIEW (HIDDEN IN FULL EXAM) ---
 # ==========================================
-if filtered_df.empty:
-    st.info("👆 Select subjects and difficulty levels in the configuration menu above to generate your custom practice set of PYQ.")
-else:
-    # --- TOP LEVEL METRICS (Filtered Set) ---
+if not full_paper:
+    st.markdown("### 📊 Database Overview")
     col1, col2 = st.columns(2)
-    col1.metric("Total Questions", len(filtered_df))
-    
-    exam_label = f"{filtered_df['exam'].iloc[0]} {filtered_df['year'].iloc[0]}" if 'exam' in filtered_df.columns and 'year' in filtered_df.columns else "N/A"
-    col2.metric("Target Exam", exam_label)
-    
-    st.markdown("---")
-    
-    # --- MOBILE OPTIMIZED CHARTS (Filtered Set) ---
+    col1.metric("Total Questions", len(df))
+
+    if 'exam' in df.columns and 'year' in df.columns:
+        unique_exams = df[['exam', 'year']].drop_duplicates()
+        exam_label = ", ".join([f"{row['exam']} {row['year']}" for _, row in unique_exams.iterrows()])
+    else:
+        exam_label = "UPSC CAPF-AC 2025"
+    col2.metric("Available Exams", exam_label)
+
     c1, c2 = st.columns(2)
     with c1:
-        fig_sub = px.pie(filtered_df, names='subject', hole=0.5, title="Subject Weightage")
+        fig_sub = px.pie(df, names='subject', hole=0.5, title="Subject Weightage")
         fig_sub.update_layout(dragmode=False, showlegend=False, margin=dict(t=30, b=10, l=10, r=10))
         fig_sub.update_xaxes(fixedrange=True)
         fig_sub.update_yaxes(fixedrange=True)
         fig_sub.update_traces(textposition='inside', textinfo='percent+label')
-        st.plotly_chart(fig_sub, use_container_width=True, key="filtered_subject_chart")
+        st.plotly_chart(fig_sub, use_container_width=True, key="global_subject_chart")
 
     with c2:
-        fig_pattern = px.bar(filtered_df['q_pattern'].value_counts().reset_index(), 
+        fig_pattern = px.bar(df['q_pattern'].value_counts().reset_index(), 
                              x='count', y='q_pattern', 
                              orientation='h', 
                              title="Question Structures", 
@@ -311,7 +248,42 @@ else:
         fig_pattern.update_layout(plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', showlegend=False, dragmode=False)
         fig_pattern.update_xaxes(showgrid=False, fixedrange=True, visible=False)
         fig_pattern.update_yaxes(fixedrange=True, categoryorder='total ascending')
-        st.plotly_chart(fig_pattern, use_container_width=True, key="filtered_pattern_chart")
+        st.plotly_chart(fig_pattern, use_container_width=True, key="global_pattern_chart")
+    st.markdown("---")
+
+# ==========================================
+# --- MAIN CONTENT RENDER (TEST ARENA) ---
+# ==========================================
+if filtered_df.empty:
+    st.info("👆 Select subjects and difficulty levels in the configuration menu above to generate your custom practice set of PYQ.")
+else:
+    # --- FILTERED METRICS & CHARTS (HIDDEN IN FULL EXAM) ---
+    if not full_paper:
+        col1, col2 = st.columns(2)
+        col1.metric("Total Questions", len(filtered_df))
+        exam_label = f"{filtered_df['exam'].iloc[0]} {filtered_df['year'].iloc[0]}" if 'exam' in filtered_df.columns and 'year' in filtered_df.columns else "N/A"
+        col2.metric("Target Exam", exam_label)
+        st.markdown("---")
+        
+        c1, c2 = st.columns(2)
+        with c1:
+            fig_sub = px.pie(filtered_df, names='subject', hole=0.5, title="Subject Weightage")
+            fig_sub.update_layout(dragmode=False, showlegend=False, margin=dict(t=30, b=10, l=10, r=10))
+            fig_sub.update_xaxes(fixedrange=True)
+            fig_sub.update_yaxes(fixedrange=True)
+            fig_sub.update_traces(textposition='inside', textinfo='percent+label')
+            st.plotly_chart(fig_sub, use_container_width=True, key="filtered_subject_chart")
+
+        with c2:
+            fig_pattern = px.bar(filtered_df['q_pattern'].value_counts().reset_index(), 
+                                 x='count', y='q_pattern', 
+                                 orientation='h', 
+                                 title="Question Structures", 
+                                 color='q_pattern')
+            fig_pattern.update_layout(plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', showlegend=False, dragmode=False)
+            fig_pattern.update_xaxes(showgrid=False, fixedrange=True, visible=False)
+            fig_pattern.update_yaxes(fixedrange=True, categoryorder='total ascending')
+            st.plotly_chart(fig_pattern, use_container_width=True, key="filtered_pattern_chart")
 
     st.markdown("## 🎯 Test Arena")
 
@@ -329,7 +301,7 @@ else:
                 <br>&emsp;↳ <em>Round 2:</em> Solve 50-50 elimination questions.
                 <br>&emsp;↳ <em>Round 3:</em> Execute strictly calculated risks to hit target cutoff.
             </div>
-            <div class="briefing-item">• <strong>Timer Rules:</strong> The countdown clock runs continuously once initiated. Responses auto-lock upon timer expiration. Ensure high stability and avoid page reloads.</div>
+            <div class="briefing-item">• <strong>Timer Rules:</strong> The countdown clock runs continuously once initiated. Responses auto-lock upon timer expiration.</div>
         </div>
         """, unsafe_allow_html=True)
 
@@ -340,42 +312,121 @@ else:
 
     else:
         # ==========================================
-        # --- COUNTDOWN TIMER & SUBMISSION BAR ---
+        # --- JS FLOATING TIMER INJECTION ---
         # ==========================================
-        if full_paper and st.session_state['exam_started'] and not st.session_state['exam_submitted']:
-            elapsed_time = int(time.time() - st.session_state['start_time'])
-            remaining_time = max(0, st.session_state['time_limit_seconds'] - elapsed_time)
-
-            hours = remaining_time // 3600
-            minutes = (remaining_time % 3600) // 60
-            seconds = remaining_time % 60
-            formatted_time = f"{hours:02d}:{minutes:02d}:{seconds:02d}"
-
-            if remaining_time <= 0:
-                st.session_state['exam_submitted'] = True
-                st.session_state['auto_submitted'] = True
-                st.rerun()
-
-            timer_class = "timer-urgent" if remaining_time < 900 else "timer-normal"
-            st.markdown(f"""
-            <div class="timer-container {timer_class}">
-                ⏳ Time Remaining: {formatted_time}
-            </div>
-            """, unsafe_allow_html=True)
+        if full_paper and st.session_state['exam_started']:
+            if not st.session_state['exam_submitted']:
+                elapsed_time = int(time.time() - st.session_state['start_time'])
+                remaining_time = max(0, st.session_state['time_limit_seconds'] - elapsed_time)
+                
+                # Server-side auto-submit fallback
+                if remaining_time <= 0:
+                    st.session_state['exam_submitted'] = True
+                    st.session_state['auto_submitted'] = True
+                    st.rerun()
+                
+                # Inject JS timer via components.html into the parent document DOM
+                timer_js = f"""
+                <script>
+                    var parentDoc = window.parent.document;
+                    var timerDiv = parentDoc.getElementById('floating-timer');
+                    if (!timerDiv) {{
+                        timerDiv = parentDoc.createElement('div');
+                        timerDiv.id = 'floating-timer';
+                        timerDiv.style.position = 'fixed';
+                        timerDiv.style.top = '70px';
+                        timerDiv.style.right = '30px';
+                        timerDiv.style.zIndex = '999999';
+                        timerDiv.style.background = 'rgba(255, 255, 255, 0.95)';
+                        timerDiv.style.padding = '12px 20px';
+                        timerDiv.style.border = '2px solid #3B82F6';
+                        timerDiv.style.borderRadius = '8px';
+                        timerDiv.style.fontWeight = 'bold';
+                        timerDiv.style.boxShadow = '0 4px 10px rgba(0,0,0,0.15)';
+                        timerDiv.style.color = '#1E3A8A';
+                        timerDiv.style.fontFamily = 'monospace';
+                        timerDiv.style.fontSize = '1.2rem';
+                        parentDoc.body.appendChild(timerDiv);
+                    }}
+                    
+                    var remaining = {remaining_time};
+                    if (window.timerInterval) clearInterval(window.timerInterval);
+                    
+                    window.timerInterval = setInterval(function() {{
+                        if (remaining <= 0) {{
+                            clearInterval(window.timerInterval);
+                            timerDiv.innerHTML = "⏰ Time Expired!";
+                            timerDiv.style.color = "#991B1B";
+                            timerDiv.style.borderColor = "#FCA5A5";
+                            timerDiv.style.backgroundColor = "#FEF2F2";
+                        }} else {{
+                            remaining--;
+                            var h = Math.floor(remaining / 3600);
+                            var m = Math.floor((remaining % 3600) / 60);
+                            var s = remaining % 60;
+                            var hStr = (h < 10 ? "0"+h : h);
+                            var mStr = (m < 10 ? "0"+m : m);
+                            var sStr = (s < 10 ? "0"+s : s);
+                            timerDiv.innerHTML = "⏳ " + hStr + ":" + mStr + ":" + sStr;
+                            
+                            if (remaining < 900) {{
+                                timerDiv.style.color = "#991B1B";
+                                timerDiv.style.borderColor = "#FCA5A5";
+                                timerDiv.style.backgroundColor = "#FEF2F2";
+                            }}
+                        }}
+                    }}, 1000);
+                </script>
+                """
+                components.html(timer_js, height=0, width=0)
+            else:
+                # Remove timer if submitted
+                cleanup_js = """
+                <script>
+                    var parentDoc = window.parent.document;
+                    var timerDiv = parentDoc.getElementById('floating-timer');
+                    if (timerDiv) timerDiv.remove();
+                    if (window.timerInterval) clearInterval(window.timerInterval);
+                </script>
+                """
+                components.html(cleanup_js, height=0, width=0)
 
         if st.session_state['auto_submitted']:
             st.error("⏰ **Time Expired!** The 2-hour window has lapsed. Your responses have been automatically submitted.")
 
-        if st.button("🔄 Reset Test / Clear Answers", use_container_width=True):
-            reset_test_state()
-            st.rerun()
+        if not st.session_state['exam_submitted']:
+            if st.button("🔄 Reset Test / Clear Answers", use_container_width=True):
+                reset_test_state()
+                st.rerun()
 
         st.markdown("---")
 
         # ==========================================
-        # --- QUESTION RENDERING LOOP ---
+        # --- COLLAPSIBLE QUESTION NAVIGATOR ---
+        # ==========================================
+        if full_paper and not st.session_state['exam_submitted']:
+            with st.expander("📊 Question Navigator Grid", expanded=False):
+                cols = st.columns(10)
+                for i, row in filtered_df.reset_index().iterrows():
+                    qid = str(row['question_id'])
+                    q_num = i + 1 
+                    
+                    if qid in st.session_state['marked_for_review']:
+                        emoji = "🟧" # Marked
+                    elif qid in st.session_state['user_answers']:
+                        emoji = "🟩" # Attempted
+                    else:
+                        emoji = "⬜" # Blank
+                    
+                    if cols[i % 10].button(f"{emoji} {q_num}", key=f"nav_grid_{qid}"):
+                        st.session_state['current_page'] = i // 5
+                        st.rerun()
+
+        # ==========================================
+        # --- QUESTION RENDERING & PAGINATION ---
         # ==========================================
         if is_exam_mode and st.session_state['exam_submitted']:
+            # Post Submission Review (No pagination needed for review to easily scroll)
             st.markdown("### 📝 Post-Submission Review")
             st.write("Click on any question to expand explanations and log your errors.")
             
@@ -407,14 +458,12 @@ else:
                             st.markdown(f"{opt_letter}) {opt_text}")
                     
                     st.markdown("---")
-                    
                     if user_pick == "Unattempted":
                         st.warning("⚠️ **Status:** Unattempted")
                     elif user_pick == correct_opt:
                         st.success("🎯 **Status:** Correct")
                     else:
                         st.error("🚨 **Status:** Incorrect")
-                        
                         current_tag = st.session_state['error_tags'].get(qid, "Conceptual Gap")
                         selected_tag = st.selectbox(
                             "Categorize this mistake:",
@@ -429,7 +478,19 @@ else:
                     st.caption(f"**Source:** {row.get('source', 'N/A')}")
 
         else:
-            for index, row in filtered_df.iterrows():
+            # Live Test (Paginated)
+            questions_per_page = 5 if full_paper else len(filtered_df)
+            total_pages = (len(filtered_df) - 1) // questions_per_page + 1
+            
+            # Ensure current_page is within bounds
+            if st.session_state['current_page'] >= total_pages:
+                st.session_state['current_page'] = max(0, total_pages - 1)
+                
+            start_idx = st.session_state['current_page'] * questions_per_page
+            end_idx = start_idx + questions_per_page
+            page_df = filtered_df.iloc[start_idx:end_idx]
+
+            for index, row in page_df.iterrows():
                 qid = str(row['question_id'])
                 q_num = row['q_num']
                 correct_opt = str(row['final_opt']).strip()
@@ -457,6 +518,15 @@ else:
 
                 if selected_choice:
                     st.session_state['user_answers'][qid] = selected_choice[0]
+                
+                # Mark for Review Checkbox
+                if full_paper:
+                    is_marked = qid in st.session_state['marked_for_review']
+                    mark_review = st.checkbox("📌 Mark for Review", value=is_marked, key=f"review_{qid}")
+                    if mark_review:
+                        st.session_state['marked_for_review'].add(qid)
+                    elif qid in st.session_state['marked_for_review']:
+                        st.session_state['marked_for_review'].discard(qid)
 
                 if not is_exam_mode:
                     if st.button(f"Check Answer", key=f"btn_check_{qid}"):
@@ -471,7 +541,6 @@ else:
                             st.success(f"✅ **Correct!** (Answer: {correct_opt})")
                         else:
                             st.error(f"❌ **Incorrect.** Correct Answer is **{correct_opt}**")
-
                             current_tag = st.session_state['error_tags'].get(qid, "Conceptual Gap")
                             selected_tag = st.selectbox(
                                 "Categorize this mistake:",
@@ -480,11 +549,26 @@ else:
                                 key=f"tag_{qid}"
                             )
                             st.session_state['error_tags'][qid] = selected_tag
-
                         cleaned_explanation = clean_text(row['explanation'])
                         st.info(f"**Explanation:**\n{cleaned_explanation}")
 
                 st.divider()
+            
+            # --- PAGINATION CONTROLS ---
+            if full_paper:
+                col_prev, col_spacer, col_next = st.columns([1, 2, 1])
+                with col_prev:
+                    if st.session_state['current_page'] > 0:
+                        if st.button("⬅️ Previous Page", use_container_width=True):
+                            st.session_state['current_page'] -= 1
+                            st.rerun()
+                with col_next:
+                    if st.session_state['current_page'] < total_pages - 1:
+                        if st.button("Next Page ➡️", use_container_width=True):
+                            st.session_state['current_page'] += 1
+                            st.rerun()
+                st.markdown(f"<div style='text-align: center; color: gray;'>Page {st.session_state['current_page'] + 1} of {total_pages}</div>", unsafe_allow_html=True)
+                st.markdown("---")
 
         if is_exam_mode and not st.session_state['exam_submitted']:
             if st.button("🚀 Submit Mock Test & Generate Analysis", type="primary", use_container_width=True):
@@ -526,7 +610,6 @@ else:
                 })
 
             analysis_df = pd.DataFrame(records)
-
             total_questions = len(analysis_df)
             attempted = len(analysis_df[analysis_df['Status'] != "Unattempted"])
             correct = len(analysis_df[analysis_df['Status'] == "Correct"])
