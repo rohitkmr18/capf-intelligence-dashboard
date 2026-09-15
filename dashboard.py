@@ -143,8 +143,7 @@ def clean_text(text):
 # ==========================================
 @st.cache_data(ttl="1h") 
 def fetch_google_sheet():
-    # Replace the URL below with your actual Google Sheets export URL
-    sheet_url = "https://docs.google.com/spreadsheets/d/YOUR_SHEET_ID_HERE/export?format=csv&gid=0"
+    sheet_url = "https://docs.google.com/spreadsheets/d/1bufEL9Fe-JtQLI8kSvdsI8T-4dSdiqaVBA-5pnoFuVY/gviz/tq?tqx=out:csv&gid=0"
     return pd.read_csv(sheet_url)
 
 # Lock the data to the user's browser session on their first load
