@@ -1,3 +1,5 @@
+import requests
+import io
 import streamlit as st
 import pandas as pd
 import plotly.express as px
@@ -154,15 +156,34 @@ def clean_text(text):
 # ==========================================
 # --- DATA FETCHING & SESSION LOCKING ---
 # ==========================================
-@st.cache_data(ttl="1h") 
+@st.cache_data(ttl="1h", show_spinner=False) 
 def fetch_google_sheet():
-    # Replace the URL below with your actual Google Sheets export URL
-    sheet_url = "https://docs.google.com/spreadsheets/d/YOUR_SHEET_ID_HERE/export?format=csv&gid=0"
-    return pd.read_csv(sheet_url)
+    sheet_id = "1bufEL9Fe-JtQLI8kSvdsI8T-4dSdiqaVBA-5pnoFuVY"
+    sheet_url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv&gid=0"
+    
+    try:
+        # requests handles Google's redirects much better than pandas' internal fetcher
+        response = requests.get(sheet_url, timeout=10)
+        
+        # If the sheet is private, Google returns a 403 or redirects to a login page (200 but HTML)
+        if response.status_code != 200:
+            st.error(f"HTTP Error {response.status_code}: Cannot access Google Sheet.")
+            st.stop()
+            
+        if "<html" in response.text[:20].lower():
+            st.error("Access Denied: Google is redirecting to a login page. Please ensure your Google Sheet sharing settings are set to 'Anyone with the link' (Viewer).")
+            st.stop()
+            
+        return pd.read_csv(io.StringIO(response.text))
+        
+    except Exception as e:
+        st.error(f"Failed to fetch database: {str(e)}")
+        st.stop()
 
 # Lock the data to the user's browser session on their first load
 if 'master_db' not in st.session_state:
-    st.session_state['master_db'] = fetch_google_sheet()
+    with st.spinner("Downloading Tactical Database..."):
+        st.session_state['master_db'] = fetch_google_sheet()
 
 # The rest of your application will use this session-locked dataframe
 df = st.session_state['master_db']
