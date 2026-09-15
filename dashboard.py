@@ -646,7 +646,8 @@ else:
             # ==========================================
             st.markdown("### 🗺️ Question Grid (Click to Jump)")
             
-            grid_html = '<div style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 20px;">'
+            # We can use normal formatting here because components.html doesn't parse Markdown
+            grid_html = '<div style="display: flex; flex-wrap: wrap; gap: 8px; font-family: sans-serif; padding: 5px;">'
             
             for _, row in analysis_df.sort_values('q_num').iterrows():
                 q_num = row['q_num']
@@ -659,17 +660,25 @@ else:
                 else:
                     bg_color = "#94A3B8" # Grey
                     
-                # The jump script executes JS directly on click
+                # The jump script reaches out to the parent Streamlit window to scroll
                 jump_script = f"window.parent.document.getElementById('q-{q_num}').scrollIntoView({{behavior: 'smooth', block: 'start'}});"
                 
-                # Single-line HTML to avoid Markdown parsing it as a code block
-                grid_html += f'<div onclick="{jump_script}" style="width:40px; height:40px; background-color:{bg_color}; display:flex; align-items:center; justify-content:center; border-radius:4px; color:white; font-weight:bold; cursor:pointer; font-size:14px; box-shadow: 0 2px 4px rgba(0,0,0,0.15); transition: transform 0.1s ease;">{q_num}</div>'
-                
+                grid_html += f'''
+                    <div onclick="{jump_script}" 
+                         style="width:40px; height:40px; background-color:{bg_color}; 
+                                display:flex; align-items:center; justify-content:center; 
+                                border-radius:4px; color:white; font-weight:bold; 
+                                cursor:pointer; font-size:14px; box-shadow: 0 2px 4px rgba(0,0,0,0.15);">
+                        {q_num}
+                    </div>
+                '''
             grid_html += '</div>'
             
-            st.markdown(grid_html, unsafe_allow_html=True)
+            # FIX: Use components.html instead of st.markdown. 
+            # This completely isolates the HTML from Streamlit's Markdown engine and prevents the code leakage.
+            components.html(grid_html, height=350, scrolling=True)
+            
             st.divider()
-
             # 4. Detailed Review (Sorted by Incorrect First)
             st.markdown("### 📝 Detailed Review")
             st.caption("Sorted by priority: 🔴 Incorrect ➔ ⚪ Skipped ➔ 🟢 Correct")
