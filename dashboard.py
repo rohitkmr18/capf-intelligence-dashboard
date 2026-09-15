@@ -305,8 +305,6 @@ else:
 # ==========================================
 # --- IMMERSIVE MODE (HIDE UI) LOGIC ---
 # ==========================================
-# Rely only on exam_started. Do not rely on the checkbox widget key, 
-# because Streamlit deletes widget keys from memory when they are hidden!
 is_active_full_mock = st.session_state.get('exam_started', False)
 
 if not is_active_full_mock:
@@ -365,7 +363,6 @@ if not is_active_full_mock:
     with st.expander("⚙️ Configure Mocks", expanded=True):
         full_paper_label = "⏱️ Attempt Full Paper (120 Questions - 2 Hours)" if selected_exam == "CDS" else "⏱️ Attempt Full Paper (125 Questions - 2 Hours)"
         
-        # Use a secondary persistent state flag to manage the checkbox safely
         if 'full_paper_toggle' not in st.session_state:
             st.session_state['full_paper_toggle'] = False
             
@@ -392,7 +389,6 @@ if not is_active_full_mock:
             filtered_df = exam_df
             is_exam_mode = True
 else:
-    # IMMERSIVE MODE IS ACTIVE - Setup variables silently without showing the UI
     full_paper = True
     filtered_df = exam_df
     is_exam_mode = True
@@ -531,7 +527,23 @@ else:
         # --- PHASE 1: POST-TEST HIERARCHY ---
         # ==========================================
         if should_show_analysis:
-            # 1. Evaluate Dataset First
+            # Auto-scroll to top upon rendering the scorecard
+            scorecard_scroll_js = """
+            <script>
+                setTimeout(function() {
+                    var doc = window.parent.document;
+                    var viewContainer = doc.querySelector('[data-testid="stAppViewContainer"]') || doc.querySelector('.main');
+                    if (viewContainer) {
+                        viewContainer.scrollTo({top: 0, behavior: 'smooth'});
+                    } else {
+                        doc.documentElement.scrollTo({top: 0, behavior: 'smooth'});
+                    }
+                }, 100);
+            </script>
+            """
+            components.html(scorecard_scroll_js, height=0, width=0)
+
+            # Evaluate Dataset First
             records = []
             eval_set = filtered_df if is_exam_mode else filtered_df[filtered_df['question_id'].astype(str).isin(st.session_state['checked_questions'])]
 
@@ -542,13 +554,13 @@ else:
 
                 if user_pick == "Unattempted":
                     status = "Unattempted"
-                    sort_val = 2 # Middle priority
+                    sort_val = 2
                 elif user_pick == correct_opt:
                     status = "Correct"
-                    sort_val = 3 # Lowest priority
+                    sort_val = 3
                 else:
                     status = "Incorrect"
-                    sort_val = 1 # Highest priority (rendered first)
+                    sort_val = 1
 
                 row_dict = row.to_dict()
                 row_dict.update({
@@ -561,7 +573,6 @@ else:
 
             analysis_df = pd.DataFrame(records)
             
-            # Metrics Calculations
             total_questions = len(analysis_df)
             attempted = len(analysis_df[analysis_df['Status'] != "Unattempted"])
             correct = len(analysis_df[analysis_df['Status'] == "Correct"])
@@ -577,7 +588,7 @@ else:
             max_score = total_questions * pos_mark
             accuracy = (correct / attempted * 100) if attempted > 0 else 0
 
-            # 2. Render Metrics Tabs Top Level
+            # Render Metrics Tabs Top Level
             st.markdown("## 📊 Performance Audit")
             tab_score, tab_subject, tab_vault, tab_roadmap = st.tabs(["Scorecard", "Subject Precision", "Mistake Vault", "Strategic Roadmap"])
 
@@ -653,28 +664,30 @@ else:
                 status = row['Status']
                 
                 if status == "Correct":
-                    bg_color = "#22C55E" # Green
+                    bg_color = "#22C55E"
+                    icon = "✅"
                 elif status == "Incorrect":
-                    bg_color = "#EF4444" # Red
+                    bg_color = "#EF4444"
+                    icon = "❌"
                 else:
-                    bg_color = "#94A3B8" # Grey
+                    bg_color = "#94A3B8"
+                    icon = "⏸️"
                     
-                # The jump script executes JS directly on click
                 jump_script = f"window.parent.document.getElementById('q-{q_num}').scrollIntoView({{behavior: 'smooth', block: 'start'}});"
                 
-                # Single line construction
-                cell = f'<div onclick="{jump_script}" style="width:40px; height:40px; background-color:{bg_color}; display:flex; align-items:center; justify-content:center; border-radius:4px; color:white; font-weight:bold; cursor:pointer; font-size:14px; box-shadow: 0 2px 4px rgba(0,0,0,0.15);">{q_num}</div>'
+                # Width set to 60px to accommodate icon + number cleanly
+                cell = f'<div onclick="{jump_script}" style="width:60px; height:40px; background-color:{bg_color}; display:flex; align-items:center; justify-content:center; gap:4px; border-radius:4px; color:white; font-weight:bold; cursor:pointer; font-size:12px; box-shadow: 0 2px 4px rgba(0,0,0,0.15);">{icon} {q_num}</div>'
                 grid_html += cell
                 
             grid_html += '</div>'
-            
-            # THE CRITICAL FIX: This strips ALL newlines and hidden indentation
-            # Streamlit is forced to render it as UI, and cannot turn it into a code block
             clean_html = grid_html.replace('\n', '').strip()
             
             st.markdown(clean_html, unsafe_allow_html=True)
-            st.divider() 
-            # 4. Detailed Review (Sorted by Incorrect First)
+            st.divider()
+
+            # ==========================================
+            # --- DETAILED REVIEW (ALWAYS COLLAPSED) ---
+            # ==========================================
             st.markdown("### 📝 Detailed Review")
             st.caption("Sorted by priority: 🔴 Incorrect ➔ ⚪ Skipped ➔ 🟢 Correct")
             
@@ -688,9 +701,8 @@ else:
                 user_pick = row['User_Choice']
                 
                 icon = "❌" if status == "Incorrect" else "✅" if status == "Correct" else "⏸️"
-                is_expanded = (status == "Incorrect")
+                is_expanded = False # Always collapsed by default
                 
-                # --- THIS IS THE TARGET ANCHOR ---
                 st.markdown(f'<div id="q-{q_num}" class="anchor-offset"></div>', unsafe_allow_html=True)
                 
                 with st.expander(f"{icon} Q{q_num} | {row['subject']}", expanded=is_expanded):
@@ -886,5 +898,5 @@ else:
             if is_exam_mode and not st.session_state['exam_submitted']:
                 if st.button("🚀 Submit Mock Test & Generate Analysis", type="primary", use_container_width=True):
                     st.session_state['exam_submitted'] = True
-                    st.session_state['scroll_trigger'] = True # Forces window to top on submit too
+                    st.session_state['scroll_trigger'] = True
                     st.rerun()
