@@ -203,7 +203,8 @@ if 'master_db' not in st.session_state:
     with st.spinner("Downloading Tactical Database..."):
         st.session_state['master_db'] = fetch_google_sheet()
 
-df = st.session_state['master_db']# ==========================================
+df = st.session_state['master_db']
+# ==========================================
 # --- SESSION STATE INITIALIZATION ---
 # ==========================================
 if 'user_answers' not in st.session_state:
@@ -242,12 +243,11 @@ st.markdown("""
 st.markdown('<div class="cred-badge">Engineered by an IIT Kanpur graduate, UPSC CAPF AC AIR 163 and 4-time CDS qualifier.</div>', unsafe_allow_html=True)
 
 st.markdown('<div class="dash-intro">Transform raw PYQs into a tactical, data-driven preparation engine. Stop passive reading and start actively eliminating. This intelligence dashboard analyzes your performance patterns, isolates specific examiner traps, and dynamically builds a personalized syllabus roadmap to maximize your final score.</div>', unsafe_allow_html=True)
-
 # ==========================================
 # --- EXAM, YEAR, & CYCLE SELECTION ---
 # ==========================================
 
-# Pre-clean dataframe columns to prevent type mismatch or whitespace bugs
+# Clean dataframe columns to prevent hidden space bugs
 if 'exam' in df.columns:
     df['exam'] = df['exam'].astype(str).str.strip()
 if 'year' in df.columns:
@@ -255,55 +255,35 @@ if 'year' in df.columns:
 if 'cycle' in df.columns:
     df['cycle'] = df['cycle'].astype(str).str.strip()
 
-if not st.session_state['is_full_paper']:
+# Check full paper state first to handle dropdown visibility cleanly
+is_full_paper_active = st.session_state.get('is_full_paper', False)
+
+if not is_full_paper_active:
     st.markdown("### 🎯 Select Database Parameters")
-    
     col1, col2, col3 = st.columns(3)
     
-    # 1. Target Exam Dropdown
     with col1:
         exam_options = list(df['exam'].dropna().unique()) if 'exam' in df.columns else ["CAPF-AC", "CDS"]
-        selected_exam = st.selectbox(
-            "Target Exam:",
-            options=exam_options,
-            key="exam_selection",
-            on_change=reset_test_state
-        )
+        selected_exam = st.selectbox("Target Exam:", options=exam_options, key="exam_selection", on_change=reset_test_state)
 
-    # 2. Exam Year Dropdown (Filtered strictly by selected exam)
     with col2:
-        if 'exam' in df.columns and 'year' in df.columns:
-            available_years = list(df[df['exam'] == selected_exam]['year'].dropna().unique())
-        else:
-            available_years = ["2025", "2026"]
-            
-        selected_year = st.selectbox(
-            "Exam Year:",
-            options=available_years,
-            key="year_selection",
-            on_change=reset_test_state
-        )
+        available_years = list(df[df['exam'] == selected_exam]['year'].dropna().unique()) if 'exam' in df.columns and 'year' in df.columns else ["2025", "2026"]
+        selected_year = st.selectbox("Exam Year:", options=available_years, key="year_selection", on_change=reset_test_state)
 
-    # 3. Exam Cycle Dropdown (Appears ONLY for CDS)
     selected_cycle = None
     with col3:
         if selected_exam == "CDS":
-            selected_cycle = st.selectbox(
-                "Exam Cycle:",
-                options=["I", "II"],
-                key="cycle_selection",
-                on_change=reset_test_state
-            )
+            selected_cycle = st.selectbox("Exam Cycle:", options=["I", "II"], key="cycle_selection", on_change=reset_test_state)
 else:
+    # Pull locked choices from session state during full mock execution
     selected_exam = st.session_state.get('exam_selection', "CAPF-AC")
     selected_year = st.session_state.get('year_selection', "2025")
     selected_cycle = st.session_state.get('cycle_selection', None)
 
-# --- BULLETPROOF DATAFRAME FILTERING ---
+# --- UNIFIED DATAFRAME FILTERING ---
 if 'exam' in df.columns and 'year' in df.columns:
     exam_df = df[(df['exam'] == str(selected_exam).strip()) & (df['year'] == str(selected_year).strip())]
     
-    # Additional cycle filter for CDS
     if selected_exam == "CDS" and selected_cycle:
         if 'cycle' in exam_df.columns:
             exam_df = exam_df[exam_df['cycle'] == str(selected_cycle).strip()]
@@ -313,47 +293,6 @@ else:
     exam_df = df
 
 st.markdown("---")
-# ==========================================
-# --- GLOBAL DATABASE OVERVIEW ---
-# ==========================================
-if not st.session_state['is_full_paper']:
-    st.markdown(f"### 📊 Database Overview: {selected_exam} {selected_year}")
-    col1, col2 = st.columns(2)
-    # Using exam_df to reflect only the selected exam's metrics
-    col1.metric("Total Questions", len(exam_df))
-    col2.metric("Active Dataset", f"{selected_exam} {selected_year}")
-
-    c1, c2, c3 = st.columns(3)
-    chart_config = {'displayModeBar': False}
-
-    with c1:
-        if 'subject' in exam_df.columns and not exam_df.empty:
-            fig_sub = px.pie(exam_df, names='subject', hole=0.5, title="Subject Weightage")
-            fig_sub.update_traces(textposition='inside', textinfo='label+value', hovertemplate="%{label}: %{value} Questions<extra></extra>")
-            fig_sub.update_layout(dragmode=False, showlegend=False, margin=dict(t=30, b=10, l=10, r=10))
-            fig_sub.update_xaxes(fixedrange=True)
-            fig_sub.update_yaxes(fixedrange=True)
-            st.plotly_chart(fig_sub, use_container_width=True, config=chart_config, key="global_subject_chart")
-
-    with c2:
-        if 'q_pattern' in exam_df.columns and not exam_df.empty:
-            fig_pattern = px.pie(exam_df, names='q_pattern', hole=0.5, title="Question Structures")
-            fig_pattern.update_traces(textposition='inside', textinfo='label+value', hovertemplate="%{label}: %{value} Questions<extra></extra>")
-            fig_pattern.update_layout(dragmode=False, showlegend=False, margin=dict(t=30, b=10, l=10, r=10))
-            fig_pattern.update_xaxes(fixedrange=True)
-            fig_pattern.update_yaxes(fixedrange=True)
-            st.plotly_chart(fig_pattern, use_container_width=True, config=chart_config, key="global_pattern_chart")
-
-    with c3:
-        if 'difficulty' in exam_df.columns and not exam_df.empty:
-            fig_diff = px.pie(exam_df, names='difficulty', hole=0.5, title="Difficulty Level")
-            fig_diff.update_traces(textposition='inside', textinfo='label+value', hovertemplate="%{label}: %{value} Questions<extra></extra>")
-            fig_diff.update_layout(dragmode=False, showlegend=False, margin=dict(t=30, b=10, l=10, r=10))
-            fig_diff.update_xaxes(fixedrange=True)
-            fig_diff.update_yaxes(fixedrange=True)
-            st.plotly_chart(fig_diff, use_container_width=True, config=chart_config, key="global_difficulty_chart")
-
-    st.markdown("---")
 
 # ==========================================
 # --- CENTRALIZED FILTERS & EXAM TOGGLE ---
@@ -383,7 +322,7 @@ with st.expander("⚙️ Configure Mocks", expanded=True):
         if 'subject' in exam_df.columns and 'difficulty' in exam_df.columns and selected_subject and selected_difficulty:
             filtered_df = exam_df[(exam_df['subject'].isin(selected_subject)) & (exam_df['difficulty'].isin(selected_difficulty))]
         else:
-            filtered_df = pd.DataFrame() # Empty until user selects filters
+            filtered_df = pd.DataFrame()
         
         st.markdown("---")
         mode = st.radio(
@@ -393,7 +332,7 @@ with st.expander("⚙️ Configure Mocks", expanded=True):
         )
         is_exam_mode = "Full Mock Exam" in mode
     else:
-        # FORCE filtered_df to equal exam_df when Full Paper is checked, ignoring blank multiselects
+        # Force filtered_df to load all rows of exam_df, bypassing blank multiselects
         filtered_df = exam_df
         st.warning(f"⏱️ **Timed Mock Activated for {selected_exam} ({len(filtered_df)} Questions Loaded).** The interface is locked to Full Mock Exam mode.")
         is_exam_mode = True
@@ -404,7 +343,7 @@ with st.expander("⚙️ Configure Mocks", expanded=True):
 if filtered_df.empty and not full_paper:
     st.info("👆 Select subjects and difficulty levels in the configuration menu above to generate your custom practice set of PYQ.")
 elif filtered_df.empty and full_paper:
-    st.error(f"🚨 **Dataset Empty:** No rows found in Google Sheet for `{selected_exam}` | Year: `{selected_year}` | Cycle: `{selected_cycle if selected_exam == 'CDS' else 'N/A'}`.")
+    st.error(f"🚨 **Dataset Empty:** No rows found in Google Sheet for `{selected_exam}` | Year: `{selected_year}` | Cycle: `{selected_cycle if selected_exam == 'CDS' else 'N/A'}`. Please verify your Google Sheet data rows.")
 else:
     st.markdown("## 🎯 Test Arena")
     # ==========================================
