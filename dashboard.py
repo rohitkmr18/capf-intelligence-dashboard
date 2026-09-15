@@ -138,12 +138,21 @@ def clean_text(text):
         return ""
     return str(text).replace('\\n', '  \n').replace('\n', '  \n')
 
-@st.cache_data(ttl="10m") 
-def load_data():
-    # Read the exact Excel filename verbatim
-    return pd.read_excel('PYQ Intelligence.xlsx')
+# ==========================================
+# --- DATA FETCHING & SESSION LOCKING ---
+# ==========================================
+@st.cache_data(ttl="1h") 
+def fetch_google_sheet():
+    # Replace the URL below with your actual Google Sheets export URL
+    sheet_url = "https://docs.google.com/spreadsheets/d/YOUR_SHEET_ID_HERE/export?format=csv&gid=0"
+    return pd.read_csv(sheet_url)
 
-df = load_data()
+# Lock the data to the user's browser session on their first load
+if 'master_db' not in st.session_state:
+    st.session_state['master_db'] = fetch_google_sheet()
+
+# The rest of your application will use this session-locked dataframe
+df = st.session_state['master_db']
 # ==========================================
 # --- SESSION STATE INITIALIZATION ---
 # ==========================================
