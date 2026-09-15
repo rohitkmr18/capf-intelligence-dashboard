@@ -10,7 +10,7 @@ st.set_page_config(page_title="Defence Pathshala | PYQ Engine", layout="centered
 st.markdown("""
 <style>
 /* Base Typography & Negative Space */
-html, body, [class*="css"]  {
+html, body, [class*="css"] {
     font-family: 'Inter', 'Segoe UI', sans-serif;
 }
 .block-container {
@@ -136,7 +136,6 @@ st.markdown("### 📊 Database Overview")
 col1, col2 = st.columns(2)
 col1.metric("Total Questions", len(df))
 
-# Dynamically construct exam label (e.g., "CAPF AC 2025, CDS 2024")
 if 'exam' in df.columns and 'year' in df.columns:
     unique_exams = df[['exam', 'year']].drop_duplicates()
     exam_label = ", ".join([f"{row['exam']} {row['year']}" for _, row in unique_exams.iterrows()])
@@ -153,18 +152,18 @@ with c1:
     fig_sub.update_xaxes(fixedrange=True)
     fig_sub.update_yaxes(fixedrange=True)
     fig_sub.update_traces(textposition='inside', textinfo='percent+label')
-    st.plotly_chart(fig_sub, use_container_width=True)
+    st.plotly_chart(fig_sub, use_container_width=True, key="global_subject_chart")
 
 with c2:
     fig_pattern = px.bar(df['q_pattern'].value_counts().reset_index(), 
                          x='count', y='q_pattern', 
-                         orientation='h',
-                         title="Question Structures",
+                         orientation='h', 
+                         title="Question Structures", 
                          color='q_pattern')
     fig_pattern.update_layout(plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', showlegend=False, dragmode=False)
     fig_pattern.update_xaxes(showgrid=False, fixedrange=True, visible=False)
     fig_pattern.update_yaxes(fixedrange=True, categoryorder='total ascending')
-    st.plotly_chart(fig_pattern, use_container_width=True)
+    st.plotly_chart(fig_pattern, use_container_width=True, key="global_pattern_chart")
 
 st.markdown("---")
 
@@ -178,13 +177,13 @@ with st.expander("⚙️ Configure Mocks", expanded=True):
         selected_subject = st.multiselect(
             "Select Subject", 
             df['subject'].unique(), 
-            default=[],
+            default=[], 
             on_change=reset_test_state
         )
         selected_difficulty = st.multiselect(
             "Select Difficulty", 
             df['difficulty'].unique(), 
-            default=[],
+            default=[], 
             on_change=reset_test_state
         )
         
@@ -237,18 +236,18 @@ else:
         fig_sub.update_xaxes(fixedrange=True)
         fig_sub.update_yaxes(fixedrange=True)
         fig_sub.update_traces(textposition='inside', textinfo='percent+label')
-        st.plotly_chart(fig_sub, use_container_width=True)
+        st.plotly_chart(fig_sub, use_container_width=True, key="filtered_subject_chart")
 
     with c2:
         fig_pattern = px.bar(filtered_df['q_pattern'].value_counts().reset_index(), 
                              x='count', y='q_pattern', 
-                             orientation='h',
-                             title="Question Structures",
+                             orientation='h', 
+                             title="Question Structures", 
                              color='q_pattern')
         fig_pattern.update_layout(plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', showlegend=False, dragmode=False)
         fig_pattern.update_xaxes(showgrid=False, fixedrange=True, visible=False)
         fig_pattern.update_yaxes(fixedrange=True, categoryorder='total ascending')
-        st.plotly_chart(fig_pattern, use_container_width=True)
+        st.plotly_chart(fig_pattern, use_container_width=True, key="filtered_pattern_chart")
 
     st.markdown("## 🎯 Test Arena")
 
