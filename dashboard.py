@@ -246,19 +246,23 @@ st.markdown('<div class="dash-intro">Transform raw PYQs into a tactical, data-dr
 # ==========================================
 # --- EXAM, YEAR, & CYCLE SELECTION ---
 # ==========================================
+
+# Pre-clean dataframe columns to prevent type mismatch or whitespace bugs
+if 'exam' in df.columns:
+    df['exam'] = df['exam'].astype(str).str.strip()
+if 'year' in df.columns:
+    df['year'] = df['year'].astype(str).str.strip()
+if 'cycle' in df.columns:
+    df['cycle'] = df['cycle'].astype(str).str.strip()
+
 if not st.session_state['is_full_paper']:
     st.markdown("### 🎯 Select Database Parameters")
     
-    # Create columns for a cleaner UI layout
     col1, col2, col3 = st.columns(3)
     
     # 1. Target Exam Dropdown
     with col1:
-        if 'exam' in df.columns:
-            exam_options = list(df['exam'].dropna().unique())
-        else:
-            exam_options = ["CAPF-AC", "CDS"] # Fallback
-            
+        exam_options = list(df['exam'].dropna().unique()) if 'exam' in df.columns else ["CAPF-AC", "CDS"]
         selected_exam = st.selectbox(
             "Target Exam:",
             options=exam_options,
@@ -266,12 +270,12 @@ if not st.session_state['is_full_paper']:
             on_change=reset_test_state
         )
 
-    # 2. Exam Year Dropdown
+    # 2. Exam Year Dropdown (Filtered strictly by selected exam)
     with col2:
         if 'exam' in df.columns and 'year' in df.columns:
             available_years = list(df[df['exam'] == selected_exam]['year'].dropna().unique())
         else:
-            available_years = ["2025", "2026"] # Fallback
+            available_years = ["2025", "2026"]
             
         selected_year = st.selectbox(
             "Exam Year:",
@@ -291,26 +295,24 @@ if not st.session_state['is_full_paper']:
                 on_change=reset_test_state
             )
 else:
-    # Retain selected state when full paper mode hides the selectors
     selected_exam = st.session_state.get('exam_selection', "CAPF-AC")
     selected_year = st.session_state.get('year_selection', "2025")
     selected_cycle = st.session_state.get('cycle_selection', None)
 
-# Base filter (Exam + Year)
+# --- BULLETPROOF DATAFRAME FILTERING ---
 if 'exam' in df.columns and 'year' in df.columns:
-    exam_df = df[(df['exam'] == selected_exam) & (df['year'] == selected_year)]
+    exam_df = df[(df['exam'] == str(selected_exam).strip()) & (df['year'] == str(selected_year).strip())]
     
     # Additional cycle filter for CDS
     if selected_exam == "CDS" and selected_cycle:
         if 'cycle' in exam_df.columns:
-            exam_df = exam_df[exam_df['cycle'] == selected_cycle]
+            exam_df = exam_df[exam_df['cycle'] == str(selected_cycle).strip()]
         else:
             st.warning("⚠️ 'cycle' column not found in database. Showing all CDS questions for the selected year.")
 else:
     exam_df = df
 
 st.markdown("---")
-
 # ==========================================
 # --- GLOBAL DATABASE OVERVIEW ---
 # ==========================================
