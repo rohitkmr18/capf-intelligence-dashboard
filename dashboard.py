@@ -305,7 +305,9 @@ else:
 # ==========================================
 # --- IMMERSIVE MODE (HIDE UI) LOGIC ---
 # ==========================================
-is_active_full_mock = st.session_state.get('is_full_paper', False) and st.session_state.get('exam_started', False)
+# FIX: Rely only on exam_started. Do not rely on the checkbox widget key, 
+# because Streamlit deletes widget keys from memory when they are hidden!
+is_active_full_mock = st.session_state.get('exam_started', False)
 
 if not is_active_full_mock:
     st.markdown("### 🎯 Select Database Parameters")
@@ -362,7 +364,17 @@ if not is_active_full_mock:
     st.markdown("---")
     with st.expander("⚙️ Configure Mocks", expanded=True):
         full_paper_label = "⏱️ Attempt Full Paper (120 Questions - 2 Hours)" if selected_exam == "CDS" else "⏱️ Attempt Full Paper (125 Questions - 2 Hours)"
-        full_paper = st.checkbox(full_paper_label, key="is_full_paper", on_change=reset_test_state)
+        
+        # Use a secondary persistent state flag to manage the checkbox safely
+        if 'full_paper_toggle' not in st.session_state:
+            st.session_state['full_paper_toggle'] = False
+            
+        full_paper = st.checkbox(full_paper_label, value=st.session_state['full_paper_toggle'])
+        
+        if full_paper != st.session_state['full_paper_toggle']:
+            st.session_state['full_paper_toggle'] = full_paper
+            reset_test_state()
+            st.rerun()
         
         if not full_paper:
             selected_subject = st.multiselect("Select Subject", exam_df['subject'].unique() if 'subject' in exam_df.columns else [], default=[], on_change=reset_test_state)
@@ -385,6 +397,9 @@ else:
     filtered_df = exam_df
     is_exam_mode = True
 
+# ==========================================
+# --- MAIN CONTENT RENDER (TEST ARENA) ---
+# ==========================================
 # ==========================================
 # --- MAIN CONTENT RENDER (TEST ARENA) ---
 # ==========================================
