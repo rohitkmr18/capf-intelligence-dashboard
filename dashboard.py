@@ -267,8 +267,6 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-st.markdown('<div class="cred-badge">Engineered by an IIT Kanpur graduate, UPSC CAPF AC AIR 163 and 4-time CDS qualifier.</div>', unsafe_allow_html=True)
-
 st.markdown('<div class="dash-intro">Transform raw PYQs into a tactical, data-driven preparation engine. Stop passive reading and start actively eliminating. This intelligence dashboard analyzes your performance patterns, isolates specific examiner traps, and dynamically builds a personalized syllabus roadmap to maximize your final score.</div>', unsafe_allow_html=True)
 
 # ==========================================
@@ -291,168 +289,101 @@ if 'locked_year' not in st.session_state:
 if 'locked_cycle' not in st.session_state:
     st.session_state['locked_cycle'] = "I"
 
-is_full_paper_active = st.session_state.get('is_full_paper', False)
+selected_exam = st.session_state.get('locked_exam', "CAPF-AC")
+selected_year = st.session_state.get('locked_year', "2025")
+selected_cycle = st.session_state.get('locked_cycle', "I")
 
-if not is_full_paper_active:
+# --- UNIFIED DATAFRAME FILTERING ---
+if 'exam' in df.columns and 'year' in df.columns:
+    exam_df = df[(df['exam'] == str(selected_exam).strip()) & (df['year'] == str(selected_year).strip())]
+    if selected_exam == "CDS" and selected_cycle:
+        if 'cycle' in exam_df.columns:
+            exam_df = exam_df[exam_df['cycle'] == str(selected_cycle).strip()]
+else:
+    exam_df = df
+
+# ==========================================
+# --- IMMERSIVE MODE (HIDE UI) LOGIC ---
+# ==========================================
+is_active_full_mock = st.session_state.get('is_full_paper', False) and st.session_state.get('exam_started', False)
+
+if not is_active_full_mock:
     st.markdown("### 🎯 Select Database Parameters")
     col1, col2, col3 = st.columns(3)
     
     with col1:
         exam_options = list(df['exam'].dropna().unique()) if 'exam' in df.columns else ["CAPF-AC", "CDS"]
         default_exam_idx = exam_options.index(st.session_state['locked_exam']) if st.session_state['locked_exam'] in exam_options else 0
-        
-        selected_exam = st.selectbox(
-            "Target Exam:", 
-            options=exam_options, 
-            index=default_exam_idx,
-            key="exam_selection", 
-            on_change=reset_test_state
-        )
+        selected_exam = st.selectbox("Target Exam:", options=exam_options, index=default_exam_idx, key="exam_selection", on_change=reset_test_state)
         st.session_state['locked_exam'] = selected_exam
 
     with col2:
         available_years = list(df[df['exam'] == selected_exam]['year'].dropna().unique()) if 'exam' in df.columns and 'year' in df.columns else ["2025", "2026"]
         default_year_idx = available_years.index(st.session_state['locked_year']) if st.session_state['locked_year'] in available_years else 0
-        
-        selected_year = st.selectbox(
-            "Exam Year:", 
-            options=available_years, 
-            index=default_year_idx,
-            key="year_selection", 
-            on_change=reset_test_state
-        )
+        selected_year = st.selectbox("Exam Year:", options=available_years, index=default_year_idx, key="year_selection", on_change=reset_test_state)
         st.session_state['locked_year'] = selected_year
 
-    selected_cycle = None
     with col3:
         if selected_exam == "CDS":
             cycle_options = ["I", "II"]
             default_cycle_idx = cycle_options.index(st.session_state['locked_cycle']) if st.session_state['locked_cycle'] in cycle_options else 0
-            
-            selected_cycle = st.selectbox(
-                "Exam Cycle:", 
-                options=cycle_options, 
-                index=default_cycle_idx,
-                key="cycle_selection", 
-                on_change=reset_test_state
-            )
+            selected_cycle = st.selectbox("Exam Cycle:", options=cycle_options, index=default_cycle_idx, key="cycle_selection", on_change=reset_test_state)
             st.session_state['locked_cycle'] = selected_cycle
-else:
-    selected_exam = st.session_state.get('locked_exam', "CAPF-AC")
-    selected_year = st.session_state.get('locked_year', "2025")
-    selected_cycle = st.session_state.get('locked_cycle', "I")
 
-# --- UNIFIED DATAFRAME FILTERING ---
-if 'exam' in df.columns and 'year' in df.columns:
-    exam_df = df[(df['exam'] == str(selected_exam).strip()) & (df['year'] == str(selected_year).strip())]
-    
-    if selected_exam == "CDS" and selected_cycle:
-        if 'cycle' in exam_df.columns:
-            exam_df = exam_df[exam_df['cycle'] == str(selected_cycle).strip()]
-        else:
-            st.warning("⚠️ 'cycle' column not found in database. Showing all CDS questions for the selected year.")
-else:
-    exam_df = df
+    st.markdown("---")
+    st.markdown(f"### 📊 Database Overview: {selected_exam} {selected_year}")
 
-st.markdown("---")
-# ==========================================
-# --- GLOBAL DATABASE OVERVIEW ---
-# ==========================================
-st.markdown(f"### 📊 Database Overview: {selected_exam} {selected_year}")
+    if not exam_df.empty:
+        col_m1, col_m2 = st.columns(2)
+        col_m1.metric("Total Questions", len(exam_df))
+        col_m2.metric("Active Dataset", f"{selected_exam} {selected_year}")
 
-if not exam_df.empty:
-    col_m1, col_m2 = st.columns(2)
-    col_m1.metric("Total Questions", len(exam_df))
-    col_m2.metric("Active Dataset", f"{selected_exam} {selected_year}")
+        c1, c2, c3 = st.columns(3)
+        chart_config = {'displayModeBar': False}
+        with c1:
+            if 'subject' in exam_df.columns:
+                fig_sub = px.pie(exam_df, names='subject', hole=0.5, title="")
+                fig_sub.update_traces(textposition='inside', textinfo='label+value', hovertemplate="%{label}: %{value} Questions<extra></extra>")
+                fig_sub.update_layout(dragmode=False, showlegend=False, margin=dict(t=20, b=20, l=10, r=10), annotations=[dict(text="Subject", x=0.5, y=0.5, font_size=12, showarrow=False, font_weight="bold")])
+                st.plotly_chart(fig_sub, use_container_width=True, config=chart_config, key="global_subject_chart")
+        with c2:
+            if 'q_pattern' in exam_df.columns:
+                fig_pattern = px.pie(exam_df, names='q_pattern', hole=0.5, title="")
+                fig_pattern.update_traces(textposition='inside', textinfo='label+value', hovertemplate="%{label}: %{value} Questions<extra></extra>")
+                fig_pattern.update_layout(dragmode=False, showlegend=False, margin=dict(t=20, b=20, l=10, r=10), annotations=[dict(text="Pattern", x=0.5, y=0.5, font_size=12, showarrow=False, font_weight="bold")])
+                st.plotly_chart(fig_pattern, use_container_width=True, config=chart_config, key="global_pattern_chart")
+        with c3:
+            if 'difficulty' in exam_df.columns:
+                fig_diff = px.pie(exam_df, names='difficulty', hole=0.5, title="")
+                fig_diff.update_traces(textposition='inside', textinfo='label+value', hovertemplate="%{label}: %{value} Questions<extra></extra>")
+                fig_diff.update_layout(dragmode=False, showlegend=False, margin=dict(t=20, b=20, l=10, r=10), annotations=[dict(text="Difficulty", x=0.5, y=0.5, font_size=12, showarrow=False, font_weight="bold")])
+                st.plotly_chart(fig_diff, use_container_width=True, config=chart_config, key="global_difficulty_chart")
 
-    c1, c2, c3 = st.columns(3)
-    chart_config = {'displayModeBar': False}
-
-    with c1:
-        if 'subject' in exam_df.columns:
-            fig_sub = px.pie(exam_df, names='subject', hole=0.5, title="")
-            fig_sub.update_traces(textposition='inside', textinfo='label+value', hovertemplate="%{label}: %{value} Questions<extra></extra>")
-            fig_sub.update_layout(
-                dragmode=False, 
-                showlegend=False, 
-                margin=dict(t=20, b=20, l=10, r=10),
-                annotations=[dict(text="Subject<br>Weightage", x=0.5, y=0.5, font_size=12, showarrow=False, font_weight="bold")]
-            )
-            fig_sub.update_xaxes(fixedrange=True)
-            fig_sub.update_yaxes(fixedrange=True)
-            st.plotly_chart(fig_sub, use_container_width=True, config=chart_config, key="global_subject_chart")
-
-    with c2:
-        if 'q_pattern' in exam_df.columns:
-            fig_pattern = px.pie(exam_df, names='q_pattern', hole=0.5, title="")
-            fig_pattern.update_traces(textposition='inside', textinfo='label+value', hovertemplate="%{label}: %{value} Questions<extra></extra>")
-            fig_pattern.update_layout(
-                dragmode=False, 
-                showlegend=False, 
-                margin=dict(t=20, b=20, l=10, r=10),
-                annotations=[dict(text="Question<br>Structures", x=0.5, y=0.5, font_size=12, showarrow=False, font_weight="bold")]
-            )
-            fig_pattern.update_xaxes(fixedrange=True)
-            fig_pattern.update_yaxes(fixedrange=True)
-            st.plotly_chart(fig_pattern, use_container_width=True, config=chart_config, key="global_pattern_chart")
-
-    with c3:
-        if 'difficulty' in exam_df.columns:
-            fig_diff = px.pie(exam_df, names='difficulty', hole=0.5, title="")
-            fig_diff.update_traces(textposition='inside', textinfo='label+value', hovertemplate="%{label}: %{value} Questions<extra></extra>")
-            fig_diff.update_layout(
-                dragmode=False, 
-                showlegend=False, 
-                margin=dict(t=20, b=20, l=10, r=10),
-                annotations=[dict(text="Difficulty<br>Level", x=0.5, y=0.5, font_size=12, showarrow=False, font_weight="bold")]
-            )
-            fig_diff.update_xaxes(fixedrange=True)
-            fig_diff.update_yaxes(fixedrange=True)
-            st.plotly_chart(fig_diff, use_container_width=True, config=chart_config, key="global_difficulty_chart")
-else:
-    st.warning("⚠️ No data available in `exam_df` to render overview charts.")
-
-st.markdown("---")
-# ==========================================
-# --- CENTRALIZED FILTERS & EXAM TOGGLE ---
-# ==========================================
-with st.expander("⚙️ Configure Mocks", expanded=True):
-    if selected_exam == "CDS":
-        full_paper_label = "⏱️ Attempt Full Paper (120 Questions - 2 Hours)"
-    else:
-        full_paper_label = "⏱️ Attempt Full Paper (125 Questions - 2 Hours)"
-
-    full_paper = st.checkbox(full_paper_label, key="is_full_paper", on_change=reset_test_state)
-    
-    if not full_paper:
-        selected_subject = st.multiselect(
-            "Select Subject", 
-            exam_df['subject'].unique() if 'subject' in exam_df.columns else [], 
-            default=[], 
-            on_change=reset_test_state
-        )
-        selected_difficulty = st.multiselect(
-            "Select Difficulty", 
-            exam_df['difficulty'].unique() if 'difficulty' in exam_df.columns else [], 
-            default=[], 
-            on_change=reset_test_state
-        )
+    st.markdown("---")
+    with st.expander("⚙️ Configure Mocks", expanded=True):
+        full_paper_label = "⏱️ Attempt Full Paper (120 Questions - 2 Hours)" if selected_exam == "CDS" else "⏱️ Attempt Full Paper (125 Questions - 2 Hours)"
+        full_paper = st.checkbox(full_paper_label, key="is_full_paper", on_change=reset_test_state)
         
-        if 'subject' in exam_df.columns and 'difficulty' in exam_df.columns and selected_subject and selected_difficulty:
-            filtered_df = exam_df[(exam_df['subject'].isin(selected_subject)) & (exam_df['difficulty'].isin(selected_difficulty))]
+        if not full_paper:
+            selected_subject = st.multiselect("Select Subject", exam_df['subject'].unique() if 'subject' in exam_df.columns else [], default=[], on_change=reset_test_state)
+            selected_difficulty = st.multiselect("Select Difficulty", exam_df['difficulty'].unique() if 'difficulty' in exam_df.columns else [], default=[], on_change=reset_test_state)
+            
+            if 'subject' in exam_df.columns and 'difficulty' in exam_df.columns and selected_subject and selected_difficulty:
+                filtered_df = exam_df[(exam_df['subject'].isin(selected_subject)) & (exam_df['difficulty'].isin(selected_difficulty))]
+            else:
+                filtered_df = pd.DataFrame()
+            
+            st.markdown("---")
+            mode = st.radio("Testing Mode:", ["Instant Feedback (Practice one by one)", "Full Mock Exam (Submit all at the end)"], index=0)
+            is_exam_mode = "Full Mock Exam" in mode
         else:
-            filtered_df = pd.DataFrame()
-        
-        st.markdown("---")
-        mode = st.radio(
-            "Testing Mode:",
-            ["Instant Feedback (Practice one by one)", "Full Mock Exam (Submit all at the end)"],
-            index=0
-        )
-        is_exam_mode = "Full Mock Exam" in mode
-    else:
-        filtered_df = exam_df
-        is_exam_mode = True
+            filtered_df = exam_df
+            is_exam_mode = True
+else:
+    # IMMERSIVE MODE IS ACTIVE - Setup variables silently without showing the UI
+    full_paper = True
+    filtered_df = exam_df
+    is_exam_mode = True
 
 # ==========================================
 # --- MAIN CONTENT RENDER (TEST ARENA) ---
@@ -462,7 +393,8 @@ if filtered_df.empty and not full_paper:
 elif filtered_df.empty and full_paper:
     st.error(f"🚨 **Dataset Empty:** No rows found in Google Sheet for `{selected_exam}` | Year: `{selected_year}` | Cycle: `{selected_cycle if selected_exam == 'CDS' else 'N/A'}`.")
 else:
-    st.markdown("## 🎯 Test Arena")
+    if not is_active_full_mock:
+        st.markdown("## 🎯 Test Arena")
 
     # ==========================================
     # --- GATEKEEPER / PRE-EXAM BRIEFING ---
@@ -494,7 +426,6 @@ else:
             st.session_state['start_time'] = time.time()
             st.rerun()
     else:
-        filtered_df = exam_df
         # ==========================================
         # --- JS FLOATING TIMER INJECTION ---
         # ==========================================
@@ -579,8 +510,7 @@ else:
             if st.button("🔄 Reset Test / Clear Answers", use_container_width=True):
                 reset_test_state()
                 st.rerun()
-
-        st.markdown("---")
+            st.markdown("---")
 
         should_show_analysis = (is_exam_mode and st.session_state['exam_submitted']) or \
                                (not is_exam_mode and len(st.session_state['checked_questions']) > 0)
@@ -704,15 +634,12 @@ else:
             # ==========================================
             st.markdown("### 🗺️ Question Grid (Click to Jump)")
             
-            # Start the container
             grid_html = '<div style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 20px;">'
             
-            # Ensure index is reset so we don't accidentally iterate over pandas indices
             for _, row in analysis_df.sort_values('q_num').iterrows():
                 q_num = row['q_num']
                 status = row['Status']
                 
-                # Color code mapping
                 if status == "Correct":
                     bg_color = "#22C55E" # Green
                 elif status == "Incorrect":
@@ -720,26 +647,24 @@ else:
                 else:
                     bg_color = "#94A3B8" # Grey
                     
-                # Create the individual square
-                square = f'''
-                    <a href="#q-{q_num}" style="text-decoration: none;">
-                        <div style="width:40px; height:40px; background-color:{bg_color}; 
-                                    display:flex; align-items:center; justify-content:center; 
-                                    border-radius:4px; color:white; font-weight:bold; 
-                                    cursor:pointer; font-size:14px; box-shadow: 0 2px 4px rgba(0,0,0,0.15);
-                                    transition: transform 0.1s ease;">
-                            {q_num}
-                        </div>
-                    </a>
-                '''
-                grid_html += square
+                # The jump script executes JS directly on click
+                jump_script = f"window.parent.document.getElementById('q-{q_num}').scrollIntoView({{behavior: 'smooth', block: 'start'}});"
                 
-            # Close the container
+                grid_html += f'''
+                    <div onclick="{jump_script}" 
+                         style="width:40px; height:40px; background-color:{bg_color}; 
+                                display:flex; align-items:center; justify-content:center; 
+                                border-radius:4px; color:white; font-weight:bold; 
+                                cursor:pointer; font-size:14px; box-shadow: 0 2px 4px rgba(0,0,0,0.15);
+                                transition: transform 0.1s ease;">
+                        {q_num}
+                    </div>
+                '''
             grid_html += '</div>'
             
-            # Use st.components.v1.html for a safer iframe render to prevent CSS leakage
-            components.html(grid_html, height=200, scrolling=True)
+            st.markdown(grid_html, unsafe_allow_html=True)
             st.divider()
+
             # 4. Detailed Review (Sorted by Incorrect First)
             st.markdown("### 📝 Detailed Review")
             st.caption("Sorted by priority: 🔴 Incorrect ➔ ⚪ Skipped ➔ 🟢 Correct")
@@ -756,7 +681,7 @@ else:
                 icon = "❌" if status == "Incorrect" else "✅" if status == "Correct" else "⏸️"
                 is_expanded = (status == "Incorrect")
                 
-                # Invisible anchor for hash routing to work smoothly with fixed header
+                # --- THIS IS THE TARGET ANCHOR ---
                 st.markdown(f'<div id="q-{q_num}" class="anchor-offset"></div>', unsafe_allow_html=True)
                 
                 with st.expander(f"{icon} Q{q_num} | {row['subject']}", expanded=is_expanded):
@@ -803,33 +728,20 @@ else:
         # ==========================================
         elif not st.session_state['exam_submitted']:
             
-            # Phase 1: Pagination JS Injector check
+            # --- BULLETPROOF SCROLL INJECTION ---
             if st.session_state.get('scroll_trigger'):
                 scroll_js = """
                 <script>
-                    // Use a delay to ensure Streamlit finishes rendering the DOM before scrolling
-                    setTimeout(function() {
-                        var doc = window.parent.document;
-                        
-                        // Target 1: Modern Streamlit scroll container
-                        var viewContainer = doc.querySelector('[data-testid="stAppViewContainer"]');
-                        if (viewContainer) {
-                            viewContainer.scrollTo({top: 0, behavior: 'smooth'});
-                        }
-                        
-                        // Target 2: Older Streamlit versions
-                        var mainClass = doc.querySelector('.main');
-                        if (mainClass) {
-                            mainClass.scrollTo({top: 0, behavior: 'smooth'});
-                        }
-                        
-                        // Target 3: Absolute fallback
-                        window.parent.scrollTo({top: 0, behavior: 'smooth'});
-                        
-                    }, 150);
+                    var parentDoc = window.parent.document;
+                    var viewContainer = parentDoc.querySelector('[data-testid="stAppViewContainer"]') || parentDoc.querySelector('.main');
+                    if (viewContainer) {
+                        viewContainer.scrollTo({top: 0, behavior: 'smooth'});
+                    } else {
+                        parentDoc.documentElement.scrollTo({top: 0, behavior: 'smooth'});
+                    }
                 </script>
                 """
-                components.html(scroll_js, height=0)
+                components.html(scroll_js, height=0, width=0)
                 st.session_state['scroll_trigger'] = False
 
             # ==========================================
@@ -838,32 +750,26 @@ else:
             if full_paper:
                 with st.expander("📊 Active Navigator Grid (Click to Jump)", expanded=False):
                     
-                    # The Callback Function for Pagination Math
                     def jump_to_page(q_num):
-                        # E.g., Question 42 -> (42 - 1) // 5 = 8 (Page 9)
                         st.session_state['current_page'] = (q_num - 1) // 5
-                        st.session_state['scroll_trigger'] = True # Triggers the window-to-top JS
+                        st.session_state['scroll_trigger'] = True 
                     
-                    # Apply the CSS wrapper
                     st.markdown('<div class="active-grid-wrapper">', unsafe_allow_html=True)
-                    
-                    # Create a 10-column dense layout
                     cols = st.columns(10)
                     
                     for i, row in filtered_df.reset_index().iterrows():
                         qid = str(row['question_id'])
                         q_num = i + 1 
                         
-                        # Determine UI state based on session data
                         if qid in st.session_state['marked_for_review']:
                             btn_label = f"🔴 {q_num}"
                             btn_type = "secondary"
                         elif qid in st.session_state['user_answers']:
                             btn_label = f"✅ {q_num}"
-                            btn_type = "primary" # Turns the button background blue/theme-color
+                            btn_type = "primary" 
                         else:
                             btn_label = f"{q_num}"
-                            btn_type = "secondary" # Keeps the button grey
+                            btn_type = "secondary"
                             
                         with cols[i % 10]:
                             st.button(
@@ -950,7 +856,7 @@ else:
 
                 st.divider()
             
-            # Phase 1: Pagination Logic with Scroll Trigger
+            # Pagination Buttons
             if full_paper:
                 col_prev, col_spacer, col_next = st.columns([1, 2, 1])
                 with col_prev:
@@ -971,4 +877,5 @@ else:
             if is_exam_mode and not st.session_state['exam_submitted']:
                 if st.button("🚀 Submit Mock Test & Generate Analysis", type="primary", use_container_width=True):
                     st.session_state['exam_submitted'] = True
+                    st.session_state['scroll_trigger'] = True # Forces window to top on submit too
                     st.rerun()
