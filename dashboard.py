@@ -24,43 +24,41 @@ html, body, [class*="css"] {
 
 /* Banner Design - Tactical Military Theme */
 .hero-banner {
-    /* Camouflage background pattern with a dark overlay for text legibility */
-    background: 
-        linear-gradient(rgba(15, 23, 42, 0.65), rgba(15, 23, 42, 0.85)),
-        url('https://www.transparenttextures.com/patterns/camouflage-pattern.png'),
-        #4B5320; /* Army Green base color */
+    /* Army Green base with a seamless camouflage texture and dark overlay */
+    background-color: #4B5320; 
+    background-image: 
+        linear-gradient(rgba(15, 23, 42, 0.4), rgba(15, 23, 42, 0.7)),
+        url('https://www.transparenttextures.com/patterns/camouflage-pattern.png');
     padding: 35px 20px;
     border-radius: 12px;
     text-align: center;
-    color: white;
     margin-bottom: 15px;
-    box-shadow: 0 6px 12px rgba(0,0,0,0.3);
-    border: 2px solid #3f471b;
+    border: 2px solid #2d3312; /* Darker green border */
+    box-shadow: 0 6px 15px rgba(0,0,0,0.4);
 }
 
 .hero-title {
-    font-family: 'Black Ops One', 'Stencil', 'Impact', sans-serif;
+    font-family: 'Black Ops One', 'Impact', sans-serif;
     font-weight: 400;
-    font-size: 2.5rem;
+    font-size: 2.6rem;
     margin-bottom: 5px;
     line-height: 1.2;
     color: #F8FAFC;
-    letter-spacing: 3px;
+    letter-spacing: 2px;
     text-transform: uppercase;
-    text-shadow: 3px 3px 6px rgba(0, 0, 0, 0.9);
+    text-shadow: 2px 2px 8px rgba(0, 0, 0, 0.9); /* Heavy shadow for visibility against camo */
 }
 
 .hero-tagline {
     font-family: 'Inter', 'Segoe UI', sans-serif;
     font-size: 1.1rem;
-    color: #94A3B8;
+    color: #cbd5e1;
     margin-top: 5px;
     font-weight: 600;
     letter-spacing: 1px;
     text-transform: uppercase;
-    text-shadow: 1px 1px 3px rgba(0,0,0,0.8);
+    text-shadow: 1px 1px 4px rgba(0,0,0,0.8);
 }
-
 /* Credential Badge */
 .cred-badge {
     background-color: #F8FAFC;
