@@ -376,8 +376,8 @@ else:
             st.session_state['start_time'] = time.time()
             st.rerun()
     else:
-        # Ensures filtered_df points safely to the active session data once the test starts
-        filtered_df = active_df
+        # Safely bind filtered_df directly to exam_df when the test is running
+        filtered_df = exam_df
         # ==========================================
         # --- JS FLOATING TIMER INJECTION ---
         # ==========================================
