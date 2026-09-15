@@ -31,7 +31,7 @@ if camo_img_base64:
 else:
     background_css = '#4B5320'
 
-# Define the CSS as a standard string (No 'f' before the quotes!)
+# Define the CSS as a standard string
 css_template = """
 <style>
 /* Base Typography & Negative Space */
@@ -149,10 +149,26 @@ div.stRadio > div[role="radiogroup"] > label:hover {
     color: #1E3A8A;
 }
 
-/* Fix for hash anchor scrolling offset */
+/* Anchor offset for smooth scrolling under fixed headers */
 .anchor-offset {
     position: relative;
     top: -80px; 
+}
+
+/* Active Grid Compact Columns */
+.active-grid-wrapper [data-testid="column"] {
+    min-width: 45px !important;
+    padding: 2px !important;
+}
+
+/* Active Grid Square Buttons */
+.active-grid-wrapper [data-testid="stButton"] button {
+    height: 45px !important;
+    width: 100% !important;
+    padding: 0px !important;
+    border-radius: 4px;
+    font-weight: 800;
+    transition: all 0.2s ease;
 }
 </style>
 """
@@ -683,8 +699,11 @@ else:
             
             st.divider()
 
-            # 3. Interactive Navigation Grid (Post-Test)
+            # ==========================================
+            # --- POST-SUBMISSION NAVIGATION GRID ---
+            # ==========================================
             st.markdown("### 🗺️ Question Grid (Click to Jump)")
+            
             grid_html = '<div style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 20px;">'
             
             # Sort by q_num just for the grid view so it reads 1, 2, 3 chronologically
@@ -692,6 +711,7 @@ else:
                 q_num = row['q_num']
                 status = row['Status']
                 
+                # Color code mapping
                 if status == "Correct":
                     bg_color = "#22C55E" # Green
                 elif status == "Incorrect":
@@ -699,17 +719,21 @@ else:
                 else:
                     bg_color = "#94A3B8" # Grey
                     
+                # The anchor tag intercepts the click and scrolls to the div id
                 grid_html += f'''
                     <a href="#q-{q_num}" style="text-decoration: none;">
                         <div style="width:40px; height:40px; background-color:{bg_color}; 
                                     display:flex; align-items:center; justify-content:center; 
                                     border-radius:4px; color:white; font-weight:bold; 
-                                    cursor:pointer; font-size:14px; box-shadow: 0 1px 3px rgba(0,0,0,0.2);">
+                                    cursor:pointer; font-size:14px; box-shadow: 0 2px 4px rgba(0,0,0,0.15);
+                                    transition: transform 0.1s ease;">
                             {q_num}
                         </div>
                     </a>
                 '''
             grid_html += '</div>'
+            
+            # unsafe_allow_html=True prevents Streamlit from leaking raw HTML text
             st.markdown(grid_html, unsafe_allow_html=True)
             st.divider()
 
@@ -799,35 +823,56 @@ else:
                         // Target 3: Absolute fallback
                         window.parent.scrollTo({top: 0, behavior: 'smooth'});
                         
-                    }, 150); // 150ms delay is usually the sweet spot for Streamlit
+                    }, 150);
                 </script>
                 """
                 components.html(scroll_js, height=0)
                 st.session_state['scroll_trigger'] = False
-            # Active Grid Visualizer (non-clickable, just shows progress)
+
+            # ==========================================
+            # --- ACTIVE TEST NAVIGATOR GRID ---
+            # ==========================================
             if full_paper:
-                with st.expander("📊 Active Navigator Grid", expanded=False):
-                    grid_html = '<div style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; text-align: center;">'
+                with st.expander("📊 Active Navigator Grid (Click to Jump)", expanded=False):
+                    
+                    # The Callback Function for Pagination Math
+                    def jump_to_page(q_num):
+                        # E.g., Question 42 -> (42 - 1) // 5 = 8 (Page 9)
+                        st.session_state['current_page'] = (q_num - 1) // 5
+                        st.session_state['scroll_trigger'] = True # Triggers the window-to-top JS
+                    
+                    # Apply the CSS wrapper
+                    st.markdown('<div class="active-grid-wrapper">', unsafe_allow_html=True)
+                    
+                    # Create a 10-column dense layout
+                    cols = st.columns(10)
                     
                     for i, row in filtered_df.reset_index().iterrows():
                         qid = str(row['question_id'])
                         q_num = i + 1 
                         
+                        # Determine UI state based on session data
                         if qid in st.session_state['marked_for_review']:
-                            bg_color = "#EF4444"
-                            text_color = "white"
+                            btn_label = f"🔴 {q_num}"
+                            btn_type = "secondary"
                         elif qid in st.session_state['user_answers']:
-                            bg_color = "#22C55E"
-                            text_color = "white"
+                            btn_label = f"✅ {q_num}"
+                            btn_type = "primary" # Turns the button background blue/theme-color
                         else:
-                            bg_color = "#E2E8F0"
-                            text_color = "#334155"
+                            btn_label = f"{q_num}"
+                            btn_type = "secondary" # Keeps the button grey
                             
-                        cell_html = f'<div style="background-color: {bg_color}; color: {text_color}; padding: 10px; border-radius: 6px; font-weight: bold;">{q_num}</div>'
-                        grid_html += cell_html
-                        
-                    grid_html += '</div>'
-                    st.markdown(grid_html, unsafe_allow_html=True)
+                        with cols[i % 10]:
+                            st.button(
+                                label=btn_label,
+                                key=f"nav_btn_{qid}",
+                                type=btn_type,
+                                on_click=jump_to_page,
+                                args=(q_num,),
+                                use_container_width=True
+                            )
+                    
+                    st.markdown('</div>', unsafe_allow_html=True)
             
             questions_per_page = 5 if full_paper else len(filtered_df)
             total_pages = (len(filtered_df) - 1) // questions_per_page + 1
